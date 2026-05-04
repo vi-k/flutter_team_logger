@@ -4,21 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_team_logger/utils/ansi.dart';
 import 'package:team_logger/team_logger.dart';
 
-class LogScreen extends StatefulWidget {
+class Logs extends StatefulWidget {
   final LogTheme theme;
   final LogStorage logStorage;
 
-  const LogScreen({
+  const Logs({
     super.key,
     required this.theme,
     required this.logStorage,
   });
 
   @override
-  State<LogScreen> createState() => _LogScreenState();
+  State<Logs> createState() => _LogsState();
 }
 
-class _LogScreenState extends State<LogScreen> {
+class _LogsState extends State<Logs> {
   final _scrollController = ScrollController();
   final _logsSnapshot = ValueNotifier<List<Log>?>(null);
   final _logsCount = ValueNotifier<int>(0);
@@ -34,7 +34,7 @@ class _LogScreenState extends State<LogScreen> {
   }
 
   @override
-  void didUpdateWidget(covariant LogScreen oldWidget) {
+  void didUpdateWidget(covariant Logs oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (!identical(oldWidget.logStorage, widget.logStorage)) {

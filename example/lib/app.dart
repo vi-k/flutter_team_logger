@@ -14,7 +14,7 @@ class App extends StatelessWidget {
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         ),
-        home: LogScreen(
+        home: Logs(
           theme: theme,
           logStorage: logStorage,
         ),

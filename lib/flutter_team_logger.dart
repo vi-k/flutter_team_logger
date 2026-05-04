@@ -1,1 +1,1 @@
-export 'ui/log_screen.dart';
+export 'ui/logs.dart';
