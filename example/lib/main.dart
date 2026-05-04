@@ -172,4 +172,20 @@ void f() {
       config: const LoggableConfig(collectionMaxLength: 3),
     ),
   );
+
+  log.d(
+    'double',
+    data: Loggable.from(
+      123456.0,
+      config: const LoggableConfig(doubleFormat: '.2f', units: 'kg'),
+    ),
+  );
+
+  log.d(
+    'int',
+    data: Loggable.from(
+      123456,
+      config: const LoggableConfig(intFormat: ' d', units: 'items'),
+    ),
+  );
 }

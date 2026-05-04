@@ -1,5 +1,6 @@
 import 'package:team_logger/team_logger.dart';
 
+// ignore: avoid_classes_with_only_static_members
 abstract final class Data {
   static const postUrl =
       '[b]POST[/b] https://test-api.tezapp.org/[b]clients/addresses[/b]';
@@ -78,6 +79,7 @@ abstract final class Data {
 
   static const loggableObject = LoggableObject(
     id: 1,
+    duration: Duration(seconds: 143),
     bearing: 90,
     speed: 10,
     distance: 100,
@@ -168,6 +170,7 @@ abstract final class Data {
 
 final class LoggableObject with Loggable {
   final int id;
+  final Duration duration;
   final int bearing;
   final int speed;
   final int distance;
@@ -177,6 +180,7 @@ final class LoggableObject with Loggable {
 
   const LoggableObject({
     required this.id,
+    required this.duration,
     required this.bearing,
     required this.speed,
     required this.distance,
@@ -190,8 +194,24 @@ final class LoggableObject with Loggable {
     ..name = '$LoggableObject'
     ..prop('id', id)
     ..prop('point', point)
+    ..prop(
+      'duration',
+      duration,
+      view: LoggableMultiView([
+        LoggableView(duration.inMinutes, 'min'),
+        LoggableView(duration.inSeconds, 'sec'),
+      ]),
+    )
     ..prop('bearing', bearing, units: '°')
-    ..prop('speed', speed, units: 'm/s')
+    ..prop(
+      'speed',
+      speed,
+      units: 'm/s',
+      view: LoggableMultiView([
+        LoggableView(speed, 'm/s'),
+        LoggableView(speed * 3.6, 'km/h'),
+      ]),
+    )
     ..prop('distance', distance, units: 'm')
     ..prop('points', points, collectionMaxLength: 2)
     ..prop('destinations', destinations);
@@ -228,14 +248,10 @@ final class NotLoggableObjectConverter
     NotLoggableObject obj,
     int dataLevel,
     LogLevelTheme theme,
-    LoggableConfig config,
+    LoggableResolvedConfig config,
   ) =>
       (Loggable.builder(obj)
             ..prop('name', obj.name)
             ..prop('list', obj.list))
-          .toLogString(
-        theme: theme,
-        dataLevel: dataLevel,
-        config: config,
-      );
+          .toLogString(theme: theme, dataLevel: dataLevel, config: config);
 }

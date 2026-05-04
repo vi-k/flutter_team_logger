@@ -1,6 +1,6 @@
 name: flutter_team_logger
 description: Flutter widgets for displaying logs from team_logger library in the UI.
-version: 0.1.3
+version: 0.1.4
 repository: https://github.com/vi-k/flutter_team_logger
 
 environment:
@@ -11,7 +11,7 @@ dependencies:
   ansi_escape_codes: ^3.1.2
   flutter:
     sdk: flutter
-  team_logger: ^0.1.44
+  team_logger: ^0.1.46
 
 dev_dependencies:
   flutter_lints: ^5.0.0
