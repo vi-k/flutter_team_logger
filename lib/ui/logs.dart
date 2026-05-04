@@ -218,6 +218,13 @@ class LogItem extends StatelessWidget {
       final message =>
         levelTheme.formatMessage(levelTheme.formatValue(message)),
     };
+    var data = <String>[];
+    if (log.hasData) {
+      data = switch (log.data) {
+        final LoggableMultiData data => _multiDataToSting(data, levelTheme),
+        _ => [Loggable.objectToString(log.data, theme: levelTheme)],
+      };
+    }
     final tags = levelTheme.common
         .tagsStyle(levelTheme.allTags(log).map((e) => '#$e').join(' '));
     final error = switch (log.error) {
@@ -262,13 +269,10 @@ class LogItem extends StatelessWidget {
                           fontSize: messageFontSize,
                         ),
                       ),
-                    if (log.hasData)
+                    for (final line in data)
                       RichText(
                         text: ansiText2TextSpan(
-                          Loggable.objectToString(
-                            log.data,
-                            theme: levelTheme,
-                          ),
+                          line,
                           defaulStyle: levelTheme.normal,
                           fontSize: dataFontSize,
                         ),
@@ -364,4 +368,18 @@ class LogItem extends StatelessWidget {
       ),
     );
   }
+
+  List<String> _multiDataToSting(LoggableMultiData obj, LogLevelTheme theme) =>
+      obj.data.entries.map((e) {
+        final value = Loggable.objectToString(
+          e.value,
+          theme: theme,
+          config: obj.config,
+        );
+
+        return switch (e.key) {
+          '' => value,
+          final key => '${theme.sectionStyle(key)}${theme.styledColon} $value',
+        };
+      }).toList();
 }

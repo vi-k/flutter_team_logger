@@ -26,19 +26,22 @@ void f() {
         httpLog[level].log(
           Data.postUrl,
           traceId: httpTraceId,
-          data: const LoggableMultiData(
+          data: LoggableMultiData(
             {
               'HEADERS': Data.postHeaders,
               'BODY': Data.postBody,
             },
-            collectionMaxLength: 2,
+            config: const LoggableConfig(collectionMaxLength: 2),
           ),
           tags: ['post'],
         );
         httpLog[level].log(
           '[success][200 OK][/success] ${Data.postUrl}',
           traceId: httpTraceId,
-          data: Loggable.from(Data.succesResponse, collectionMaxLength: 2),
+          data: Loggable.from(
+            Data.succesResponse,
+            config: const LoggableConfig(collectionMaxLength: 2),
+          ),
           tags: ['response'],
         );
 
@@ -54,17 +57,35 @@ void f() {
     }
   }
 
-  log.d('json', data: Loggable.from(Data.json, collectionMaxLength: 2));
+  log.d(
+    'json',
+    data: Loggable.from(
+      Data.json,
+      config: const LoggableConfig(collectionMaxLength: 2),
+    ),
+  );
   log.d(
     '',
-    data: const LoggableMultiData({'JSON': Data.json}, collectionMaxLength: 2),
+    data: LoggableMultiData(
+      {'JSON': Data.json},
+      config: const LoggableConfig(collectionMaxLength: 2),
+    ),
   );
-  log.d('', data: Loggable.from(Data.json, collectionMaxLength: 2));
+  log.d(
+    '',
+    data: Loggable.from(
+      Data.json,
+      config: const LoggableConfig(collectionMaxLength: 2),
+    ),
+  );
 
   for (final l in LogLevels.values) {
     log[l].log(
       '',
-      data: Loggable.from(Data.listOfLists, collectionMaxLength: 2),
+      data: Loggable.from(
+        Data.listOfLists,
+        config: const LoggableConfig(collectionMaxLength: 2),
+      ),
     );
   }
 
@@ -92,7 +113,7 @@ void f() {
   );
   log.d(
     'With multi data and error',
-    data: const LoggableMultiData({
+    data: LoggableMultiData({
       'RESPONSE': {'error': 'internal error', 'code': 500},
     }),
     error: Exception('test'),
@@ -113,7 +134,7 @@ void f() {
         'textAlign': LogTextAlign.left,
         'verticalAlign': LogVerticalAlign.top,
       },
-      enumDotShorthand: false,
+      config: const LoggableConfig(enumDotShorthand: false),
     ),
   );
 
@@ -122,7 +143,7 @@ void f() {
     'wrapped list',
     data: Loggable.from(
       [1, 2, 3],
-      collectionMaxLength: 2,
+      config: const LoggableConfig(collectionMaxLength: 2),
     ),
   );
 
@@ -131,20 +152,6 @@ void f() {
     NotLoggableObjectConverter(),
   );
   log.d('NotLoggableObject', data: notLoggableObject);
-
-  // log.d('NotLoggableObject', data: notLoggableObject);
-  // log.d(
-  //   'NotLoggableObject',
-  //   data: Loggable.builder(notLoggableObject)
-  //     ..prop('name', notLoggableObject.name)
-  //     ..prop('list', notLoggableObject.list),
-  // );
-  // Loggable.registerTypeConverter<NotLoggableObject>(
-  //   ManualNotLoggableObjectConverter(),
-  // );
-  // log.d('NotLoggableObject', data: notLoggableObject);
-  // Loggable.unregisterTypeConverter<NotLoggableObject>();
-  // log.d('NotLoggableObject', data: notLoggableObject);
 
   log.d(
     'map',
@@ -160,6 +167,9 @@ void f() {
 
   log.d(
     'storage snapshot',
-    data: Loggable.from(logStorage.snapshot(), collectionMaxLength: 3),
+    data: Loggable.from(
+      logStorage.snapshot(),
+      config: const LoggableConfig(collectionMaxLength: 3),
+    ),
   );
 }

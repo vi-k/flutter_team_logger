@@ -226,61 +226,16 @@ final class NotLoggableObjectConverter
   @override
   String call(
     NotLoggableObject obj,
-    int level,
+    int dataLevel,
     LogLevelTheme theme,
-    bool? enumDotShorthand,
-    int? collectionMaxLength,
-    int? collectionMaxStringLength,
-    bool? collectionShowLength,
-    bool? collectionShowIndexes,
-    String? units,
+    LoggableConfig config,
   ) =>
       (Loggable.builder(obj)
             ..prop('name', obj.name)
             ..prop('list', obj.list))
           .toLogString(
         theme: theme,
-        level: level,
-        enumDotShorthand: enumDotShorthand,
-        collectionMaxLength: collectionMaxLength,
-        collectionMaxStringLength: collectionMaxStringLength,
-        collectionShowLength: collectionShowLength,
-        collectionShowIndexes: collectionShowIndexes,
-        units: units,
+        dataLevel: dataLevel,
+        config: config,
       );
-}
-
-final class ManualNotLoggableObjectConverter
-    implements LoggableTypeConverter<NotLoggableObject> {
-  @override
-  String call(
-    NotLoggableObject obj,
-    int level,
-    LogLevelTheme theme,
-    bool? enumDotShorthand,
-    int? collectionMaxLength,
-    int? collectionMaxStringLength,
-    bool? collectionShowLength,
-    bool? collectionShowIndexes,
-    String? units,
-  ) {
-    final levelTheme = theme.dataLevelTheme(level);
-
-    return '${theme.dataNameStyle('$NotLoggableObject')}'
-        '${levelTheme.brackets('(')}'
-        '${Loggable.mapToString(
-      {'name': obj.name, 'list': obj.list},
-      level: level,
-      theme: theme,
-      start: '',
-      end: '',
-      enumDotShorthand: enumDotShorthand,
-      collectionMaxLength: collectionMaxLength,
-      collectionMaxStringLength: collectionMaxStringLength,
-      collectionShowLength: collectionShowLength,
-      collectionShowIndexes: collectionShowIndexes,
-      units: units,
-    )}'
-        '${levelTheme.brackets(')')}';
-  }
 }
