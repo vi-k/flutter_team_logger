@@ -1,0 +1,21 @@
+name: flutter_team_logger
+description: team_logger support for Flutter.
+version: 0.1.0
+repository: https://github.com/vi-k/flutter_team_logger
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  ansi_escape_codes: ^3.1.2
+  flutter:
+    sdk: flutter
+  team_logger: ^0.1.42
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+  flutter_test:
+    sdk: flutter
+
+# flutter:
