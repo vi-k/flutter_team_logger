@@ -10,11 +10,15 @@ import '../utils/ansi.dart';
 class Logs extends StatefulWidget {
   final LogTheme theme;
   final LogStorage logStorage;
+  final Duration slidingDuration;
+  final Duration blinkingDuration;
 
   const Logs({
     super.key,
     required this.theme,
     required this.logStorage,
+    this.slidingDuration = const Duration(milliseconds: 200),
+    this.blinkingDuration = const Duration(milliseconds: 500),
   });
 
   @override
@@ -138,7 +142,9 @@ class _LogsState extends State<Logs> {
                   },
                   icon: Icon(
                     color: _paused ? Colors.amber : null,
-                    _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                    _paused
+                        ? Icons.play_circle_outline_rounded
+                        : Icons.pause_circle_outline_rounded,
                   ),
                 ),
               ),
@@ -176,8 +182,6 @@ class _LogsState extends State<Logs> {
                       final index = cachedLogs != null
                           ? cachedLogs.indexOf(log)
                           : widget.logStorage.indexOf(log);
-
-                      assert(index != -1);
 
                       return index == -1 ? null : count - index - 1;
                     },
@@ -232,84 +236,103 @@ class LogItem extends StatefulWidget {
 
   final LogTheme theme;
   final Log log;
-  final bool isNew;
+  final Duration slidingDuration;
+  final Duration blinkingDuration;
 
-  const LogItem(this.theme, this.log, {super.key, this.isNew = false});
+  const LogItem(
+    this.theme,
+    this.log, {
+    bool isNew = false,
+    Duration slidingDuration = const Duration(milliseconds: 200),
+    Duration blinkingDuration = const Duration(milliseconds: 1000),
+    super.key,
+  })  : slidingDuration = isNew ? slidingDuration : Duration.zero,
+        blinkingDuration = isNew ? blinkingDuration : Duration.zero;
 
   @override
   State<LogItem> createState() => _LogItemState();
 }
 
-class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
-  late final _controller = AnimationController(
+class _LogItemState extends State<LogItem> with TickerProviderStateMixin {
+  late final _slidingController = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 200),
+    duration: widget.slidingDuration,
+  );
+  late final _blinkingController = AnimationController(
+    vsync: this,
+    duration: widget.blinkingDuration,
   );
 
   @override
   void initState() {
     super.initState();
-    if (widget.isNew) {
-      _controller.forward();
+    if (widget.slidingDuration == Duration.zero) {
+      _slidingController.value = 1;
     } else {
-      _controller.value = 1;
+      _slidingController.forward();
+    }
+
+    if (widget.blinkingDuration == Duration.zero) {
+      _blinkingController.value = 1;
+    } else {
+      _blinkingController.forward();
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _slidingController.dispose();
+    _blinkingController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final levelTheme = widget.theme[widget.log.level];
-    final color = ansiColor2Color(levelTheme.normal.foregroundColor)!;
+    final theme = widget.theme[widget.log.level];
+    final color = ansiColor2Color(theme.normal.foregroundColor)!;
 
-    final title =
-        '${levelTheme.levelNameStyle(' ${widget.log.shortLevelName} ')} '
-        '${levelTheme.timeStyle(LogTime.timeToString(widget.log.time))}'
-        ' ${levelTheme.pathStyle('[${widget.log.path}]')}'
-        '${levelTheme.common.traceIdStyle(widget.log.traceIds.map((e) => ' {$e}').join())}';
-    final seqNum = levelTheme.sequenceNumStyle('#${widget.log.sequenceNum}');
+    final title = '${theme.levelNameStyle(' ${widget.log.shortLevelName} ')} '
+        '${theme.timeStyle(LogTime.timeToString(widget.log.time))}'
+        ' ${theme.pathStyle('[${widget.log.path}]')}'
+        '${theme.common.traceIdStyle(widget.log.traceIds.map((e) => ' {$e}').join())}';
+    final seqNum = theme.sequenceNumStyle('#${widget.log.sequenceNum}');
     final message = switch (widget.log.message) {
       '' => '',
-      final message =>
-        levelTheme.formatMessage(levelTheme.formatValue(message)),
+      final message => theme.formatMessage(theme.formatValue(message)),
     };
     var data = <String>[];
     if (widget.log.hasData) {
       data = switch (widget.log.data) {
-        final LoggableMultiData data => _multiDataToSting(data, levelTheme),
-        _ => [Loggable.objectToString(widget.log.data, theme: levelTheme)],
+        final LoggableMultiData data => _multiDataToSting(data, theme),
+        _ => [Loggable.objectToString(widget.log.data, theme: theme)],
       };
     }
-    final tags = levelTheme.common
-        .tagsStyle(levelTheme.allTags(widget.log).map((e) => '#$e').join(' '));
+    final tags = theme.common
+        .tagsStyle(theme.allTags(widget.log).map((e) => '#$e').join(' '));
+    final errorTheme = theme.common.error;
     final error = switch (widget.log.error) {
       null => null,
-      final error =>
-        '${widget.theme.error.sectionStyle('ERROR')}${widget.theme.error.styledColon}'
-            ' ${widget.theme.error.formatMessage(widget.theme.error.formatValue(error.toString()))}',
+      final error => '${errorTheme.sectionStyle(theme.common.errorTitle)}'
+          '${errorTheme.styledColon}'
+          ' ${errorTheme.formatMessage(errorTheme.formatValue(error.toString()))}',
     };
 
     String? stackTrace;
     if (widget.log.stackTrace case final s? when s != StackTrace.empty) {
       final stackTraceBox =
-          LogItem._stackTracer(widget.log, levelTheme, LogItem._row, null);
+          LogItem._stackTracer(widget.log, theme, LogItem._row, null);
       stackTrace = stackTraceBox.lines.join('\n');
     }
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) => ClipRect(
-        clipBehavior: Clip.antiAlias,
-        child: Align(
-          heightFactor: _controller.value,
-          alignment: Alignment.bottomCenter,
-          child: DefaultTextStyle.merge(
-            style: TextStyle(color: color),
+    return DefaultTextStyle.merge(
+      style: TextStyle(color: color),
+      child: AnimatedBuilder(
+        animation: _slidingController,
+        builder: (context, child) => ClipRect(
+          clipBehavior: Clip.antiAlias,
+          child: Align(
+            heightFactor: _slidingController.value,
+            alignment: Alignment.bottomCenter,
             child: Stack(
               children: [
                 Padding(
@@ -317,11 +340,20 @@ class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
                     top: LogItem.boxTopOffset,
                     bottom: LogItem.boxBottomOffset,
                   ),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: color),
-                      borderRadius:
-                          BorderRadius.circular(LogItem.boxBorderRadius),
+                  child: AnimatedBuilder(
+                    animation: _blinkingController,
+                    builder: (context, child) => DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Color.lerp(
+                          color,
+                          Colors.transparent,
+                          _blinkingController.value,
+                        ),
+                        border: Border.all(color: color),
+                        borderRadius:
+                            BorderRadius.circular(LogItem.boxBorderRadius),
+                      ),
+                      child: child,
                     ),
                     child: Padding(
                       padding: LogItem.contentPadding,
@@ -334,7 +366,7 @@ class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
                             RichText(
                               text: ansiText2TextSpan(
                                 message,
-                                defaulStyle: levelTheme.normal,
+                                defaulStyle: theme.normal,
                                 fontSize: LogItem.messageFontSize,
                               ),
                             ),
@@ -342,7 +374,7 @@ class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
                             RichText(
                               text: ansiText2TextSpan(
                                 line,
-                                defaulStyle: levelTheme.normal,
+                                defaulStyle: theme.normal,
                                 fontSize: LogItem.dataFontSize,
                               ),
                             ),
@@ -358,7 +390,7 @@ class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
                             RichText(
                               text: ansiText2TextSpan(
                                 stackTrace,
-                                defaulStyle: levelTheme.normal,
+                                defaulStyle: theme.normal,
                                 fontSize: LogItem.dataFontSize,
                               ),
                             ),
@@ -376,20 +408,23 @@ class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
                       Expanded(
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: ColoredBox(
-                            color: Theme.of(context).colorScheme.surface,
-                            child: Padding(
-                              padding: const EdgeInsets.only(
-                                left: LogItem.titleLeftPadding,
-                                right: LogItem.titleHorizontalPadding,
-                              ),
-                              child: RichText(
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                text: ansiText2TextSpan(
-                                  title,
-                                  defaulStyle: levelTheme.normal,
-                                  fontSize: LogItem.titleFontSize,
+                          child: AnimatedBuilder(
+                            animation: _blinkingController,
+                            builder: (context, child) => ColoredBox(
+                              color: Theme.of(context).colorScheme.surface,
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  left: LogItem.titleLeftPadding,
+                                  right: LogItem.titleHorizontalPadding,
+                                ),
+                                child: RichText(
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  text: ansiText2TextSpan(
+                                    title,
+                                    defaulStyle: theme.normal,
+                                    fontSize: LogItem.titleFontSize,
+                                  ),
                                 ),
                               ),
                             ),
@@ -405,7 +440,7 @@ class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
                           child: RichText(
                             text: ansiText2TextSpan(
                               seqNum,
-                              defaulStyle: levelTheme.normal,
+                              defaulStyle: theme.normal,
                               fontSize: LogItem.titleFontSize,
                             ),
                           ),
@@ -426,7 +461,7 @@ class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
                       child: RichText(
                         text: ansiText2TextSpan(
                           tags,
-                          defaulStyle: levelTheme.normal,
+                          defaulStyle: theme.normal,
                           fontSize: LogItem.titleFontSize,
                         ),
                       ),

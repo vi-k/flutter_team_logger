@@ -13,7 +13,37 @@ void main() {
 
   Timer.periodic(const Duration(seconds: 3), (timer) {
     log.d(
-      'timer',
+      'timer debug',
+      data: {
+        'tick': timer.tick,
+        'now': DateTime.now(),
+      },
+    );
+  });
+
+  Timer.periodic(const Duration(seconds: 6), (timer) {
+    log.i(
+      'timer info',
+      data: {
+        'tick': timer.tick,
+        'now': DateTime.now(),
+      },
+    );
+  });
+
+  Timer.periodic(const Duration(seconds: 9), (timer) {
+    log.w(
+      'timer warning',
+      data: {
+        'tick': timer.tick,
+        'now': DateTime.now(),
+      },
+    );
+  });
+
+  Timer.periodic(const Duration(seconds: 12), (timer) {
+    log.e(
+      'timer error',
       data: {
         'tick': timer.tick,
         'now': DateTime.now(),
