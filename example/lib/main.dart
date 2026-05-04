@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:team_logger/team_logger.dart';
 
@@ -8,6 +10,16 @@ import 'logging.dart';
 void main() {
   log.level = LogLevels.all;
   f();
+
+  Timer.periodic(const Duration(seconds: 3), (timer) {
+    log.d(
+      'timer',
+      data: {
+        'tick': timer.tick,
+        'now': DateTime.now(),
+      },
+    );
+  });
 
   runApp(const App());
 }

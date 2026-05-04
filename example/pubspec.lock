@@ -76,7 +76,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.1.4"
+    version: "0.1.5"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -211,10 +211,10 @@ packages:
     dependency: "direct main"
     description:
       name: team_logger
-      sha256: "076212d94b22d9f75b1db74cdb439a05bdd3d22e0c90aa5dacb77648c9e5d8bf"
+      sha256: edec832a8025f9eaa1870c604ffeceb11556e79285e70f9159272189a873cb48
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.46"
+    version: "0.1.48"
   term_glyph:
     dependency: transitive
     description:

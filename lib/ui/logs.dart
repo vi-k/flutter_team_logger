@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_team_logger/utils/ansi.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:team_logger/team_logger.dart';
+
+import '../utils/ansi.dart';
 
 class Logs extends StatefulWidget {
   final LogTheme theme;
@@ -23,6 +26,7 @@ class _LogsState extends State<Logs> {
   final _logsSnapshot = ValueNotifier<List<Log>?>(null);
   final _logsCount = ValueNotifier<int>(0);
   late StreamSubscription<void> _subscription;
+  int? _lastLogSeq;
 
   bool get _paused => _logsSnapshot.value != null;
 
@@ -75,16 +79,25 @@ class _LogsState extends State<Logs> {
 
     _logsSnapshot.value = [];
     _logsSnapshot.value = null;
-    _logsCount.value = widget.logStorage.count;
-
-    if (_scrollController.hasClients &&
-        _scrollController.position.pixels != 0) {
-      _scrollController.animateTo(
-        -50,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+    final count = widget.logStorage.count;
+    _logsCount.value = count;
+    if (count == 0) {
+      return;
     }
+
+    final lastLogSeq = widget.logStorage[count - 1].sequenceNum;
+
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _lastLogSeq = lastLogSeq;
+      if (_scrollController.hasClients &&
+          _scrollController.position.pixels != 0) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
@@ -119,10 +132,12 @@ class _LogsState extends State<Logs> {
               ValueListenableBuilder<List<Log>?>(
                 valueListenable: _logsSnapshot,
                 builder: (context, cachedLogs, __) => IconButton(
+                  color: _paused ? Colors.amber : null,
                   onPressed: () {
                     _paused ? _resume() : _pause();
                   },
                   icon: Icon(
+                    color: _paused ? Colors.amber : null,
                     _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                   ),
                 ),
@@ -133,15 +148,15 @@ class _LogsState extends State<Logs> {
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (notification is UserScrollNotification) {
-                  if (notification.metrics.pixels > 0) {
-                    if (!_paused) {
-                      _pause();
-                    }
-                  } else {
-                    if (_paused) {
-                      _resume();
-                    }
+                  if (notification.direction == ScrollDirection.reverse &&
+                      !_paused) {
+                    _pause();
                   }
+                  // else if (notification.direction == ScrollDirection.idle &&
+                  //     notification.metrics.pixels == 0 &&
+                  //     _paused) {
+                  //   _resume();
+                  // }
                 }
 
                 return false;
@@ -154,8 +169,18 @@ class _LogsState extends State<Logs> {
                     return const Center(child: Text('No logs'));
                   }
 
-                  return ListView.separated(
+                  return ListView.builder(
                     controller: _scrollController,
+                    findChildIndexCallback: (key) {
+                      final log = (key as ObjectKey).value! as Log;
+                      final index = cachedLogs != null
+                          ? cachedLogs.indexOf(log)
+                          : widget.logStorage.indexOf(log);
+
+                      assert(index != -1);
+
+                      return index == -1 ? null : count - index - 1;
+                    },
                     padding: const EdgeInsets.only(
                       bottom: 4,
                       left: 4,
@@ -165,9 +190,16 @@ class _LogsState extends State<Logs> {
                     itemBuilder: (_, index) {
                       final log = cachedLogs?[count - index - 1] ??
                           widget.logStorage[count - index - 1];
-                      return LogItem(widget.theme, log, key: ObjectKey(log));
+                      return LogItem(
+                        key: ObjectKey(log),
+                        isNew: switch (_lastLogSeq) {
+                          null => true,
+                          final seq => log.sequenceNum > seq,
+                        },
+                        widget.theme,
+                        log,
+                      );
                     },
-                    separatorBuilder: (_, __) => const SizedBox(height: 2),
                   );
                 },
               ),
@@ -177,7 +209,7 @@ class _LogsState extends State<Logs> {
       );
 }
 
-class LogItem extends StatelessWidget {
+class LogItem extends StatefulWidget {
   static const _stackTracer = LogStackTrace(
     showIndexes: true,
   );
@@ -200,144 +232,203 @@ class LogItem extends StatelessWidget {
 
   final LogTheme theme;
   final Log log;
+  final bool isNew;
 
-  const LogItem(this.theme, this.log, {super.key});
+  const LogItem(this.theme, this.log, {super.key, this.isNew = false});
+
+  @override
+  State<LogItem> createState() => _LogItemState();
+}
+
+class _LogItemState extends State<LogItem> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isNew) {
+      _controller.forward();
+    } else {
+      _controller.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final levelTheme = theme[log.level];
+    final levelTheme = widget.theme[widget.log.level];
     final color = ansiColor2Color(levelTheme.normal.foregroundColor)!;
 
-    final title = '${levelTheme.levelNameStyle(' ${log.shortLevelName} ')} '
-        '${levelTheme.timeStyle(LogTime.timeToString(log.time))}'
-        ' ${levelTheme.pathStyle('[${log.path}]')}'
-        '${levelTheme.common.traceIdStyle(log.traceIds.map((e) => ' {$e}').join())}';
-    final seqNum = levelTheme.sequenceNumStyle('#${log.sequenceNum}');
-    final message = switch (log.message) {
+    final title =
+        '${levelTheme.levelNameStyle(' ${widget.log.shortLevelName} ')} '
+        '${levelTheme.timeStyle(LogTime.timeToString(widget.log.time))}'
+        ' ${levelTheme.pathStyle('[${widget.log.path}]')}'
+        '${levelTheme.common.traceIdStyle(widget.log.traceIds.map((e) => ' {$e}').join())}';
+    final seqNum = levelTheme.sequenceNumStyle('#${widget.log.sequenceNum}');
+    final message = switch (widget.log.message) {
       '' => '',
       final message =>
         levelTheme.formatMessage(levelTheme.formatValue(message)),
     };
     var data = <String>[];
-    if (log.hasData) {
-      data = switch (log.data) {
+    if (widget.log.hasData) {
+      data = switch (widget.log.data) {
         final LoggableMultiData data => _multiDataToSting(data, levelTheme),
-        _ => [Loggable.objectToString(log.data, theme: levelTheme)],
+        _ => [Loggable.objectToString(widget.log.data, theme: levelTheme)],
       };
     }
     final tags = levelTheme.common
-        .tagsStyle(levelTheme.allTags(log).map((e) => '#$e').join(' '));
-    final error = switch (log.error) {
+        .tagsStyle(levelTheme.allTags(widget.log).map((e) => '#$e').join(' '));
+    final error = switch (widget.log.error) {
       null => null,
       final error =>
-        '${theme.error.sectionStyle('ERROR')}${theme.error.styledColon}'
-            ' ${theme.error.formatMessage(theme.error.formatValue(error.toString()))}',
+        '${widget.theme.error.sectionStyle('ERROR')}${widget.theme.error.styledColon}'
+            ' ${widget.theme.error.formatMessage(widget.theme.error.formatValue(error.toString()))}',
     };
 
     String? stackTrace;
-    if (log.stackTrace case final s? when s != StackTrace.empty) {
-      final stackTraceBox = _stackTracer(log, levelTheme, _row, null);
+    if (widget.log.stackTrace case final s? when s != StackTrace.empty) {
+      final stackTraceBox =
+          LogItem._stackTracer(widget.log, levelTheme, LogItem._row, null);
       stackTrace = stackTraceBox.lines.join('\n');
     }
 
-    return DefaultTextStyle.merge(
-      style: TextStyle(color: color),
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(
-              top: boxTopOffset,
-              bottom: boxBottomOffset,
-            ),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(color: color),
-                borderRadius: BorderRadius.circular(boxBorderRadius),
-              ),
-              child: Padding(
-                padding: contentPadding,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: sectionSeparator,
-                  children: [
-                    if (message.isNotEmpty)
-                      RichText(
-                        text: ansiText2TextSpan(
-                          message,
-                          defaulStyle: levelTheme.normal,
-                          fontSize: messageFontSize,
-                        ),
-                      ),
-                    for (final line in data)
-                      RichText(
-                        text: ansiText2TextSpan(
-                          line,
-                          defaulStyle: levelTheme.normal,
-                          fontSize: dataFontSize,
-                        ),
-                      ),
-                    if (error != null)
-                      RichText(
-                        text: ansiText2TextSpan(
-                          error,
-                          defaulStyle: theme.error.normal,
-                          fontSize: dataFontSize,
-                        ),
-                      ),
-                    if (stackTrace != null)
-                      RichText(
-                        text: ansiText2TextSpan(
-                          stackTrace,
-                          defaulStyle: levelTheme.normal,
-                          fontSize: dataFontSize,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: titleIndent,
-            right: titleIndent,
-            child: Row(
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) => ClipRect(
+        clipBehavior: Clip.antiAlias,
+        child: Align(
+          heightFactor: _controller.value,
+          alignment: Alignment.bottomCenter,
+          child: DefaultTextStyle.merge(
+            style: TextStyle(color: color),
+            child: Stack(
               children: [
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: ColoredBox(
-                      color: Theme.of(context).colorScheme.surface,
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          left: titleLeftPadding,
-                          right: titleHorizontalPadding,
-                        ),
-                        child: RichText(
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          text: ansiText2TextSpan(
-                            title,
-                            defaulStyle: levelTheme.normal,
-                            fontSize: titleFontSize,
-                          ),
-                        ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: LogItem.boxTopOffset,
+                    bottom: LogItem.boxBottomOffset,
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: color),
+                      borderRadius:
+                          BorderRadius.circular(LogItem.boxBorderRadius),
+                    ),
+                    child: Padding(
+                      padding: LogItem.contentPadding,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: LogItem.sectionSeparator,
+                        children: [
+                          if (message.isNotEmpty)
+                            RichText(
+                              text: ansiText2TextSpan(
+                                message,
+                                defaulStyle: levelTheme.normal,
+                                fontSize: LogItem.messageFontSize,
+                              ),
+                            ),
+                          for (final line in data)
+                            RichText(
+                              text: ansiText2TextSpan(
+                                line,
+                                defaulStyle: levelTheme.normal,
+                                fontSize: LogItem.dataFontSize,
+                              ),
+                            ),
+                          if (error != null)
+                            RichText(
+                              text: ansiText2TextSpan(
+                                error,
+                                defaulStyle: widget.theme.error.normal,
+                                fontSize: LogItem.dataFontSize,
+                              ),
+                            ),
+                          if (stackTrace != null)
+                            RichText(
+                              text: ansiText2TextSpan(
+                                stackTrace,
+                                defaulStyle: levelTheme.normal,
+                                fontSize: LogItem.dataFontSize,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                ColoredBox(
-                  color: Theme.of(context).colorScheme.surface,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: titleHorizontalPadding,
-                    ),
-                    child: RichText(
-                      text: ansiText2TextSpan(
-                        seqNum,
-                        defaulStyle: levelTheme.normal,
-                        fontSize: titleFontSize,
+                Positioned(
+                  top: 0,
+                  left: LogItem.titleIndent,
+                  right: LogItem.titleIndent,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: ColoredBox(
+                            color: Theme.of(context).colorScheme.surface,
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                left: LogItem.titleLeftPadding,
+                                right: LogItem.titleHorizontalPadding,
+                              ),
+                              child: RichText(
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                text: ansiText2TextSpan(
+                                  title,
+                                  defaulStyle: levelTheme.normal,
+                                  fontSize: LogItem.titleFontSize,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      ColoredBox(
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: LogItem.titleHorizontalPadding,
+                          ),
+                          child: RichText(
+                            text: ansiText2TextSpan(
+                              seqNum,
+                              defaulStyle: levelTheme.normal,
+                              fontSize: LogItem.titleFontSize,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: LogItem.titleIndent,
+                  child: ColoredBox(
+                    color: Theme.of(context).colorScheme.surface,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LogItem.titleHorizontalPadding,
+                      ),
+                      child: RichText(
+                        text: ansiText2TextSpan(
+                          tags,
+                          defaulStyle: levelTheme.normal,
+                          fontSize: LogItem.titleFontSize,
+                        ),
                       ),
                     ),
                   ),
@@ -345,26 +436,7 @@ class LogItem extends StatelessWidget {
               ],
             ),
           ),
-          Positioned(
-            bottom: 0,
-            right: titleIndent,
-            child: ColoredBox(
-              color: Theme.of(context).colorScheme.surface,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: titleHorizontalPadding,
-                ),
-                child: RichText(
-                  text: ansiText2TextSpan(
-                    tags,
-                    defaulStyle: levelTheme.normal,
-                    fontSize: titleFontSize,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
