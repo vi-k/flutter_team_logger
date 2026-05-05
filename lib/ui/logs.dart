@@ -26,6 +26,12 @@ class Logs extends StatefulWidget {
 }
 
 class _LogsState extends State<Logs> {
+  static const _listPadding = EdgeInsets.only(
+    bottom: 8,
+    left: 8,
+    right: 8,
+  );
+
   final _scrollController = ScrollController();
   final _logsSnapshot = ValueNotifier<List<Log>?>(null);
   final _logsCount = ValueNotifier<int>(0);
@@ -185,11 +191,7 @@ class _LogsState extends State<Logs> {
 
                       return index == -1 ? null : count - index - 1;
                     },
-                    padding: const EdgeInsets.only(
-                      bottom: 4,
-                      left: 4,
-                      right: 4,
-                    ),
+                    padding: _listPadding,
                     itemCount: count,
                     itemBuilder: (_, index) {
                       final log = cachedLogs?[count - index - 1] ??
@@ -219,9 +221,9 @@ class LogItem extends StatefulWidget {
   );
   static const _row = LogRow(children: [], maxLength: 1000000);
 
-  static const double titleFontSize = 10;
-  static const double messageFontSize = 12;
-  static const double dataFontSize = 10;
+  static const double titleFontSize = 11;
+  static const double messageFontSize = 13;
+  static const double dataFontSize = 11;
 
   static const double boxTopOffset = 7;
   static const double boxBottomOffset = 4;
