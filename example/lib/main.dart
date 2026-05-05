@@ -227,7 +227,7 @@ void f() {
     'int',
     data: Loggable.from(
       123456,
-      config: const LoggableConfig(intFormat: ' d', units: 'items'),
+      config: const LoggableConfig(intFormat: '+d', units: 'items'),
     ),
   );
 }

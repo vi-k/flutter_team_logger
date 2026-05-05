@@ -297,20 +297,25 @@ class _LogItemState extends State<LogItem> with TickerProviderStateMixin {
         '${theme.timeStyle(LogTime.timeToString(widget.log.time))}'
         ' ${theme.pathStyle('[${widget.log.path}]')}'
         '${theme.common.traceIdStyle(widget.log.traceIds.map((e) => ' {$e}').join())}';
+
     final seqNum = theme.sequenceNumStyle('#${widget.log.sequenceNum}');
-    final message = switch (widget.log.message) {
+
+    var message = switch (widget.log.message) {
       '' => '',
       final message => theme.formatMessage(theme.formatValue(message)),
     };
+
     var data = <String>[];
     if (widget.log.hasData) {
       data = switch (widget.log.data) {
-        final LoggableMultiData data => _multiDataToSting(data, theme),
+        final LoggableMultiData data => _multiDataToString(data, theme),
         _ => [Loggable.objectToString(widget.log.data, theme: theme)],
       };
     }
+
     final tags = theme.common
         .tagsStyle(theme.allTags(widget.log).map((e) => '#$e').join(' '));
+
     final errorTheme = theme.common.error;
     final error = switch (widget.log.error) {
       null => null,
@@ -324,6 +329,11 @@ class _LogItemState extends State<LogItem> with TickerProviderStateMixin {
       final stackTraceBox =
           LogItem._stackTracer(widget.log, theme, LogItem._row, null);
       stackTrace = stackTraceBox.lines.join('\n');
+    }
+
+    if (message.isNotEmpty &&
+        (data.isNotEmpty || error != null || stackTrace != null)) {
+      message = '$message${theme.styledColon}';
     }
 
     return DefaultTextStyle.merge(
@@ -478,7 +488,7 @@ class _LogItemState extends State<LogItem> with TickerProviderStateMixin {
     );
   }
 
-  List<String> _multiDataToSting(LoggableMultiData obj, LogLevelTheme theme) =>
+  List<String> _multiDataToString(LoggableMultiData obj, LogLevelTheme theme) =>
       obj.data.entries.map((e) {
         final value = Loggable.objectToString(
           e.value,
