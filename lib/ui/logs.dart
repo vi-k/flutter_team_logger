@@ -12,7 +12,10 @@ class Logs extends StatefulWidget {
   final LogTheme theme;
   final LogStorage logStorage;
   final Duration minActiveLogDuration;
+  final Duration activeLogFadeDuration;
+  final Duration scrollToBottomDelay;
   final Duration scrollToBottomDuration;
+  final Duration fastScrollToBottomDuration;
   final void Function()? onPaused;
   final void Function()? onResumed;
   final void Function()? onCleared;
@@ -25,8 +28,11 @@ class Logs extends StatefulWidget {
     super.key,
     required this.theme,
     required this.logStorage,
-    this.minActiveLogDuration = const Duration(seconds: 3),
+    this.minActiveLogDuration = const Duration(milliseconds: 3000),
+    this.activeLogFadeDuration = const Duration(milliseconds: 500),
+    this.scrollToBottomDelay = const Duration(milliseconds: 200),
     this.scrollToBottomDuration = const Duration(milliseconds: 1000),
+    this.fastScrollToBottomDuration = const Duration(milliseconds: 300),
     this.onPaused,
     this.onResumed,
     this.onCleared,
@@ -124,12 +130,12 @@ class _LogsState extends State<Logs> {
   }
 
   void _scrollToBottom({
-    Duration delay = const Duration(milliseconds: 300),
+    Duration? delay,
     bool force = false,
     bool fast = false,
   }) {
     _scrollTimer?.cancel();
-    _scrollTimer = Timer(delay, () async {
+    _scrollTimer = Timer(delay ?? widget.scrollToBottomDelay, () async {
       final lastLog = widget.logStorage.lastOrNull;
       if (lastLog == null) return;
 
@@ -146,7 +152,7 @@ class _LogsState extends State<Logs> {
         await _itemScrollController.scrollTo(
           index: anchorIndex,
           duration: fast
-              ? const Duration(milliseconds: 300)
+              ? widget.fastScrollToBottomDuration
               : widget.scrollToBottomDuration,
           alignment: 1,
         );
@@ -352,13 +358,15 @@ class LogItem extends StatefulWidget {
   final LogTheme theme;
   final Log log;
   final Duration minActiveDuration;
+  final Duration fadeDuration;
   final LogItemState state;
 
   const LogItem(
     this.theme,
     this.log, {
     this.state = LogItemState.inactive,
-    this.minActiveDuration = const Duration(seconds: 3),
+    this.minActiveDuration = const Duration(milliseconds: 3000),
+    this.fadeDuration = const Duration(milliseconds: 500),
     super.key,
   });
 
@@ -383,10 +391,8 @@ class _LogItemState extends State<LogItem> with TickerProviderStateMixin {
 
   static const _stackTracerBuilder = LogStackTrace(showIndexes: true);
 
-  late final _fadeController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 500),
-  );
+  late final _fadeController =
+      AnimationController(vsync: this, duration: widget.fadeDuration);
 
   late final LogLevelTheme _theme;
   late final String _title;
