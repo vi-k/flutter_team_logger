@@ -1,57 +1,55 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:stack_trace/stack_trace.dart';
 import 'package:team_logger/team_logger.dart';
 
 import 'app.dart';
 import 'data.dart';
 import 'logging.dart';
 
+const _timerPeriod = Duration(milliseconds: 2000);
+// const _timerPeriod = Duration(milliseconds: 500);
+
 void main() {
   log.level = LogLevels.all;
   f();
 
-  Timer.periodic(const Duration(seconds: 3), (timer) {
-    log.d(
-      'timer debug',
-      data: {
+  Object data(Timer timer) => {
         'tick': timer.tick,
         'now': DateTime.now(),
-      },
-    );
+      };
+  // Data.loggableObject,
+
+  Timer.periodic(_timerPeriod, (timer) {
+    log.d('timer debug 1', data: () => data(timer));
+    log.d('timer debug 2', data: () => data(timer));
   });
 
-  Timer.periodic(const Duration(seconds: 6), (timer) {
-    log.i(
-      'timer info',
-      data: {
-        'tick': timer.tick,
-        'now': DateTime.now(),
-      },
-    );
+  Timer.periodic(_timerPeriod * 2, (timer) {
+    log.i('timer info 1', data: () => data(timer));
+    log.i('timer info 2', data: () => data(timer));
   });
 
-  Timer.periodic(const Duration(seconds: 9), (timer) {
-    log.w(
-      'timer warning',
-      data: {
-        'tick': timer.tick,
-        'now': DateTime.now(),
-      },
-    );
+  Timer.periodic(_timerPeriod * 3, (timer) {
+    log.w('timer warning 1', data: () => data(timer));
+    log.w('timer warning 2', data: () => data(timer));
   });
 
-  Timer.periodic(const Duration(seconds: 12), (timer) {
-    log.e(
-      'timer error',
-      data: {
-        'tick': timer.tick,
-        'now': DateTime.now(),
-      },
-    );
+  Timer.periodic(_timerPeriod * 4, (timer) {
+    log.e('timer error 1', data: () => data(timer), error: Exception('test'));
+    log.e('timer error 2', data: () => data(timer), error: Exception('test'));
   });
 
-  runApp(const App());
+  Chain.capture(
+    () {
+      runApp(const App());
+    },
+    onError: (error, chain) {
+      // ignore: avoid_print
+      print(chain.terse);
+    },
+  );
 }
 
 void f() {
@@ -230,4 +228,13 @@ void f() {
       config: const LoggableConfig(intFormat: '+d', units: 'items'),
     ),
   );
+
+  // For debugging:
+  // for (var i = logStorage.count; i < logStorage.maxCount; i++) {
+  //   log.d(
+  //     'test #$i',
+  //     traceId: TraceId.auto('test'),
+  //     data: Data.loggableObject,
+  //   );
+  // }
 }

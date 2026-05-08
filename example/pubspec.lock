@@ -76,7 +76,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.1.7"
+    version: "0.1.8"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -170,6 +170,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
+  scrollable_positioned_list:
+    dependency: transitive
+    description:
+      name: scrollable_positioned_list
+      sha256: "1b54d5f1329a1e263269abc9e2543d90806131aa14fe7c6062a8054d57249287"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.8"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -184,7 +192,7 @@ packages:
     source: hosted
     version: "1.10.1"
   stack_trace:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: stack_trace
       sha256: "8b27215b45d22309b5cddda1aa2b19bdfec9df0e765f2de506401c071d38d1b1"
@@ -211,10 +219,10 @@ packages:
     dependency: "direct main"
     description:
       name: team_logger
-      sha256: "9507c64184a0747f3b1778909b0dd80339afb1831258dc8145f1981161a27929"
+      sha256: "4ca3dd72176c07aa0c9c0d7cf032aaaf2b6989d8d41a415c6d8f4a4e666d1a33"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.55"
+    version: "0.1.60"
   term_glyph:
     dependency: transitive
     description:
