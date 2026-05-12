@@ -23,14 +23,15 @@ class Logs extends StatefulWidget {
   final void Function(Log log, Object? error, StackTrace? stackTrace)?
       onScrollEnd;
   final void Function()? onRemovedLogsCleared;
+  final int maxRemovedLogsCount;
 
-  const Logs({
+  Logs({
     super.key,
     required this.theme,
     required this.logStorage,
     this.minActiveLogDuration = const Duration(milliseconds: 3000),
     this.activeLogFadeDuration = const Duration(milliseconds: 500),
-    this.scrollToBottomDelay = const Duration(milliseconds: 200),
+    this.scrollToBottomDelay = const Duration(milliseconds: 100),
     this.scrollToBottomDuration = const Duration(milliseconds: 1000),
     this.fastScrollToBottomDuration = const Duration(milliseconds: 300),
     this.onPaused,
@@ -39,7 +40,15 @@ class Logs extends StatefulWidget {
     this.onScrollStart,
     this.onScrollEnd,
     this.onRemovedLogsCleared,
-  });
+    int? maxRemovedLogsCount,
+    double? maxRemovedLogsCountRatio,
+  })  : assert(
+          maxRemovedLogsCount == null || maxRemovedLogsCountRatio == null,
+          'maxRemovedLogsCount and maxRemovedLogsCountRatio'
+          ' cannot be set at the same time',
+        ),
+        maxRemovedLogsCount = maxRemovedLogsCount ??
+            (logStorage.maxCount * (maxRemovedLogsCountRatio ?? 0.1)).round();
 
   @override
   State<Logs> createState() => _LogsState();
@@ -47,23 +56,20 @@ class Logs extends StatefulWidget {
 
 class _LogsState extends State<Logs> {
   static const _listPadding = EdgeInsets.symmetric(horizontal: 8);
+  static const _listContentBottomPadding = 4;
 
+  final _itemScrollController = ItemScrollController();
   final _updateListNotifier = ValueNotifier<int>(0);
   final _paused = ValueNotifier<bool>(false);
-  final _itemScrollController = ItemScrollController();
   Timer? _scrollTimer;
   final _removedLogs = <Log>[];
   late StreamSubscription<void> _onChangedSubscription;
   int? _lastLogThatWasScrolled;
-
-  late final double _keepDimeDilation;
+  double _scrollToBottomAlignment = 1;
 
   @override
   void initState() {
     super.initState();
-
-    _keepDimeDilation = timeDilation;
-    // timeDilation = 5;
 
     _subscribe();
     _lastLogThatWasScrolled = widget.logStorage.lastOrNull?.sequenceNum;
@@ -71,8 +77,8 @@ class _LogsState extends State<Logs> {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (widget.logStorage.isNotEmpty) {
         _itemScrollController.jumpTo(
-          index: widget.logStorage.count + 1,
-          alignment: 1,
+          index: widget.logStorage.count,
+          alignment: _scrollToBottomAlignment,
         );
       }
     });
@@ -94,8 +100,7 @@ class _LogsState extends State<Logs> {
 
   @override
   void dispose() {
-    timeDilation = _keepDimeDilation;
-
+    _scrollTimer?.cancel();
     _updateListNotifier.dispose();
     _paused.dispose();
     _onChangedSubscription.cancel();
@@ -116,7 +121,6 @@ class _LogsState extends State<Logs> {
     _paused.value = false;
     _lastLogThatWasScrolled = widget.logStorage.lastOrNull?.sequenceNum;
 
-    _cleanRemovedLogsIfNeed();
     _scrollToBottom(delay: Duration.zero, force: true, fast: true);
     widget.onResumed?.call();
   }
@@ -146,7 +150,7 @@ class _LogsState extends State<Logs> {
       _lastLogThatWasScrolled = lastLogSeq;
 
       // Scroll to anchor.
-      final anchorIndex = _removedLogs.length + widget.logStorage.count + 1;
+      final anchorIndex = _removedLogs.length + widget.logStorage.count;
       widget.onScrollStart?.call(lastLog);
       try {
         await _itemScrollController.scrollTo(
@@ -154,7 +158,7 @@ class _LogsState extends State<Logs> {
           duration: fast
               ? widget.fastScrollToBottomDuration
               : widget.scrollToBottomDuration,
-          alignment: 1,
+          alignment: _scrollToBottomAlignment,
         );
         widget.onScrollEnd?.call(lastLog, null, null);
       } on Object catch (error, stackTrace) {
@@ -164,11 +168,23 @@ class _LogsState extends State<Logs> {
   }
 
   bool _cleanRemovedLogsIfNeed() {
-    if (!_paused.value &&
-        _removedLogs.length > widget.logStorage.maxCount ~/ 20) {
+    if (!_paused.value && _removedLogs.length >= widget.maxRemovedLogsCount) {
       _removedLogs.clear();
       widget.onRemovedLogsCleared?.call();
       _updateList();
+      if (_lastLogThatWasScrolled case final lastLogSeq?) {
+        final index = widget.logStorage.indexBySequenceNum(lastLogSeq);
+        if (index != -1) {
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            _itemScrollController.jumpTo(
+              index: index + 1,
+              alignment: _scrollToBottomAlignment,
+            );
+          });
+        }
+
+        return true;
+      }
       return true;
     }
 
@@ -180,9 +196,7 @@ class _LogsState extends State<Logs> {
 
     switch (event) {
       case LogStorageRemove():
-        if (!_cleanRemovedLogsIfNeed()) {
-          _removedLogs.add(event.log);
-        }
+        _removedLogs.add(event.log);
 
       case LogStorageClear():
         _removedLogs.clear();
@@ -197,67 +211,68 @@ class _LogsState extends State<Logs> {
   @override
   Widget build(BuildContext context) => Theme(
         data: ThemeData.dark(),
-        child: Scaffold(
-          appBar: AppBar(
-            title: ValueListenableBuilder<void>(
-              valueListenable: _updateListNotifier,
-              builder: (context, _, __) => Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  const Text('Logs'),
-                  Text(
-                    ' ${_removedLogs.length + widget.logStorage.count} / ${widget.logStorage.maxCount}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              IconButton(
-                onPressed: _clear,
-                icon: const Icon(Icons.delete_rounded),
-              ),
-              ValueListenableBuilder<bool>(
-                valueListenable: _paused,
-                builder: (context, paused, _) => IconButton(
-                  color: paused ? Colors.amber : null,
-                  onPressed: paused ? _resume : _pause,
-                  icon: paused
-                      ? const Icon(
-                          Icons.play_circle_outline_rounded,
-                          color: Colors.amber,
-                        )
-                      : const Icon(Icons.pause_circle_outline_rounded),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: _paused,
+          builder: (context, paused, _) => Scaffold(
+            appBar: AppBar(
+              forceMaterialTransparency: true,
+              title: ValueListenableBuilder<void>(
+                valueListenable: _updateListNotifier,
+                builder: (context, _, __) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    const Text('Logs'),
+                    Text(
+                      ' ${_removedLogs.length + widget.logStorage.count} / ${widget.logStorage.maxCount}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          body: SafeArea(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                switch (notification) {
-                  case UserScrollNotification()
-                      when !_paused.value &&
-                          notification.direction == ScrollDirection.forward:
-                    SchedulerBinding.instance.addPostFrameCallback((_) {
-                      _pause();
-                    });
+              actions: [
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(Icons.filter_alt),
+                ),
+                IconButton(
+                  onPressed: _clear,
+                  icon: const Icon(Icons.delete_rounded),
+                ),
+              ],
+            ),
+            body: SafeArea(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.metrics.hasViewportDimension) {
+                    _scrollToBottomAlignment = 1.0 -
+                        _listContentBottomPadding /
+                            notification.metrics.viewportDimension;
+                  }
 
-                  case ScrollUpdateNotification()
-                      when _paused.value &&
-                          notification.metrics.pixels >=
-                              notification.metrics.maxScrollExtent:
-                    SchedulerBinding.instance.addPostFrameCallback((_) {
-                      _resume();
-                    });
-                }
+                  switch (notification) {
+                    case UserScrollNotification()
+                        when !_paused.value &&
+                            notification.direction == ScrollDirection.forward:
+                      SchedulerBinding.instance.addPostFrameCallback((_) {
+                        _pause();
+                      });
 
-                return false;
-              },
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _paused,
-                builder: (context, paused, _) => ValueListenableBuilder(
+                    case ScrollUpdateNotification()
+                        when _paused.value &&
+                            notification.metrics.pixels >=
+                                notification.metrics.maxScrollExtent:
+                      SchedulerBinding.instance.addPostFrameCallback((_) {
+                        // _resume();
+                      });
+
+                    case ScrollEndNotification():
+                      _cleanRemovedLogsIfNeed();
+                  }
+
+                  return false;
+                },
+                child: ValueListenableBuilder(
                   valueListenable: _updateListNotifier,
                   builder: (context, _, __) {
                     final removedCount = _removedLogs.length;
@@ -268,23 +283,11 @@ class _LogsState extends State<Logs> {
                         ScrollablePositionedList.builder(
                           itemScrollController: _itemScrollController,
                           padding: _listPadding,
-                          itemCount: totalCount + 2,
+                          itemCount: totalCount + 1, // + anchor
                           itemBuilder: (_, index) {
                             if (index == totalCount) {
-                              // Bottom padding.
-                              return const ColoredBox(
-                                // color: Colors.blueGrey,
-                                color: Colors.transparent,
-                                child: SizedBox(height: 10),
-                              );
-                            }
-                            if (index > totalCount) {
                               // Anchor for scroll to bottom.
-                              return const SizedBox.shrink();
-                            }
-
-                            if (index < removedCount) {
-                              return const SizedBox.shrink();
+                              return const SizedBox(height: 120);
                             }
 
                             final log = index < removedCount
@@ -307,34 +310,18 @@ class _LogsState extends State<Logs> {
                             );
                           },
                         ),
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: paused
-                                      ? Colors.amber
-                                      : Theme.of(context)
-                                          .scaffoldBackgroundColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Positioned(
-                        //   left: 0,
-                        //   right: 0,
-                        //   bottom: 0,
-                        //   child: _RefreshIndicator(
-                        //     scrollController: _itemScrollController,
-                        //   ),
-                        // ),
                       ],
                     );
                   },
                 ),
               ),
             ),
+            floatingActionButton: paused
+                ? FloatingActionButton.small(
+                    onPressed: _resume,
+                    child: const Icon(Icons.keyboard_double_arrow_down_rounded),
+                  )
+                : null,
           ),
         ),
       );

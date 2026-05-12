@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:flutter_team_logger/flutter_team_logger.dart';
 
@@ -15,7 +17,23 @@ class _HomeScreenState extends State<HomeScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => Logs(theme: theme, logStorage: logStorage),
+        builder: (_) => Logs(
+          theme: theme,
+          logStorage: logStorage,
+          // maxRemovedLogsCount: 20,
+          onPaused: () => print('Logs: paused'),
+          onResumed: () => print('Logs: resumed'),
+          onCleared: () => print('Logs: cleared'),
+          onScrollStart: (log) =>
+              print('Logs: scroll start to ${log.sequenceNum}'),
+          onScrollEnd: (log, error, stackTrace) => error == null
+              ? print('Logs: scrolled to ${log.sequenceNum}')
+              : print(
+                  'Logs: scroll to ${log.sequenceNum} failed: $error'
+                  '\n$stackTrace',
+                ),
+          onRemovedLogsCleared: () => print('Logs: removed logs cleared'),
+        ),
       ),
     );
   }

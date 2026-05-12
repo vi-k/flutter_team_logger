@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:stack_trace/stack_trace.dart';
 import 'package:team_logger/team_logger.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'data.dart';
@@ -11,7 +12,7 @@ import 'logging.dart';
 const _timerPeriod = Duration(milliseconds: 2000);
 // const _timerPeriod = Duration(milliseconds: 500);
 
-void main() {
+Future<void> main() async {
   log.level = LogLevels.all;
   f();
 
@@ -41,8 +42,24 @@ void main() {
     log.e('timer error 2', data: () => data(timer), error: Exception('test'));
   });
 
-  Chain.capture(
-    () {
+  await Chain.capture(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await windowManager.ensureInitialized();
+
+      const windowOptions = WindowOptions(
+        size: Size(400, 800),
+        // center: true,
+        backgroundColor: Colors.transparent,
+        skipTaskbar: false,
+        titleBarStyle: TitleBarStyle.normal,
+      );
+      // ignore: unawaited_futures
+      windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.show();
+        await windowManager.focus();
+      });
+
       runApp(const App());
     },
     onError: (error, chain) {
