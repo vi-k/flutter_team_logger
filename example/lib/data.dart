@@ -246,12 +246,12 @@ final class NotLoggableObjectConverter
   @override
   String call(
     NotLoggableObject obj,
-    int dataLevel,
-    LogLevelTheme theme,
+    LogTheme theme,
+    int depth,
     LoggableResolvedConfig config,
   ) =>
       (Loggable.builder(obj)
             ..prop('name', obj.name)
             ..prop('list', obj.list))
-          .toLogString(theme: theme, dataLevel: dataLevel, config: config);
+          .toLogString(theme: theme, depth: depth, config: config);
 }

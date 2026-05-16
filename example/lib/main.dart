@@ -10,7 +10,6 @@ import 'data.dart';
 import 'logging.dart';
 
 const _timerPeriod = Duration(milliseconds: 2000);
-// const _timerPeriod = Duration(milliseconds: 500);
 
 Future<void> main() async {
   log.level = LogLevels.all;
@@ -247,11 +246,13 @@ void f() {
   );
 
   // For debugging:
-  // for (var i = logStorage.count; i < logStorage.maxCount; i++) {
-  //   log.d(
-  //     'test #$i',
-  //     traceId: TraceId.auto('test'),
-  //     data: Data.loggableObject,
-  //   );
-  // }
+  Timer(const Duration(seconds: 10), () {
+    for (var i = logStorage.count; i < logStorage.maxCount; i++) {
+      log.d(
+        'test #$i',
+        traceId: TraceId.auto('test'),
+        data: Data.loggableObject,
+      );
+    }
+  });
 }

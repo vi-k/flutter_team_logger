@@ -13,6 +13,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final _log = log.copyWith(name: 'logs');
+
   Future<void> _showLogs() async {
     await Navigator.push(
       context,
@@ -20,41 +22,13 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => Logs(
           theme: theme,
           logStorage: logStorage,
-          // maxRemovedLogsCount: 20,
-          onPaused: () => print('Logs: paused'),
-          onResumed: () => print('Logs: resumed'),
-          onCleared: () => print('Logs: cleared'),
-          onScrollStart: (log) =>
-              print('Logs: scroll start to ${log.sequenceNum}'),
-          onScrollEnd: (log, error, stackTrace) => error == null
-              ? print('Logs: scrolled to ${log.sequenceNum}')
-              : print(
-                  'Logs: scroll to ${log.sequenceNum} failed: $error'
-                  '\n$stackTrace',
-                ),
-          onRemovedLogsCleared: () => print('Logs: removed logs cleared'),
+          onPaused: () => _log.w('[b]paused[/b]'),
+          onResumed: () => _log.w('[b]resumed[/b]'),
+          onCleared: () => _log.w('[b]cleared[/b]'),
         ),
       ),
     );
   }
-
-  // Future<void> _showLogsOld() async {
-  //   await Navigator.push(
-  //     context,
-  //     MaterialPageRoute<void>(
-  //       builder: (_) => LogsOld(theme: theme, logStorage: logStorage),
-  //     ),
-  //   );
-  // }
-
-  // Future<void> _showLogs2() async {
-  //   await Navigator.push(
-  //     context,
-  //     MaterialPageRoute<void>(
-  //       builder: (_) => Logs2(theme: theme, logStorage: logStorage),
-  //     ),
-  //   );
-  // }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -74,20 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (_, __) => Text('Logs (${logStorage.count})'),
                 ),
               ),
-              // ElevatedButton(
-              //   onPressed: _showLogsOld,
-              //   child: StreamBuilder<void>(
-              //     stream: logStorage.onChanged,
-              //     builder: (_, __) => Text('Logs old (${logStorage.count})'),
-              //   ),
-              // ),
-              // ElevatedButton(
-              //   onPressed: _showLogs2,
-              //   child: StreamBuilder<void>(
-              //     stream: logStorage.onChanged,
-              //     builder: (_, __) => Text('Logs old 2 (${logStorage.count})'),
-              //   ),
-              // ),
             ],
           ),
         ),

@@ -1,8 +1,8 @@
 import 'package:team_logger/team_logger.dart';
 
-final theme = LogTheme.defaultActiveTheme;
+final theme = LogMainTheme.defaultActiveTheme;
 
-final logStorage = LogStorage(maxCount: 1000);
+final logStorage = LogStorage(maxCount: 50, reverse: true);
 
 final log = Logger('app')
   ..publisher = MultiPublisher([
