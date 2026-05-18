@@ -246,13 +246,15 @@ void f() {
   );
 
   // For debugging:
-  Timer(const Duration(seconds: 10), () {
-    for (var i = logStorage.count; i < logStorage.maxCount; i++) {
-      log.d(
-        'test #$i',
-        traceId: TraceId.auto('test'),
-        data: Data.loggableObject,
-      );
-    }
-  });
+  // Timer(const Duration(seconds: 10), () {
+  //   for (var i = logStorage.count; i < logStorage.maxCount; i++) {
+  //     log.d(
+  //       'test #$i',
+  //       traceId: TraceId.auto('test'),
+  //       data: Data.loggableObject,
+  //     );
+  //   }
+  // });
+
+  // log.i('test test test');
 }

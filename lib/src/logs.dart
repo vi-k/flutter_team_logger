@@ -52,7 +52,7 @@ class Logs extends StatefulWidget {
 
 class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   static const _maxNewLogs = 100;
-  static const _listPadding = EdgeInsets.symmetric(horizontal: 8);
+  static const _listPadding = EdgeInsets.symmetric(horizontal: 6);
   static const _pauseColor = Colors.amber;
   static const _onPauseColor = Colors.black;
   static const _filterColor = Colors.lightBlue;
@@ -160,11 +160,15 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   }
 
   void _pause() {
+    if (_paused.value) return;
+
     _paused.value = true;
     widget.onPaused?.call();
   }
 
   void _resume() {
+    if (!_paused.value) return;
+
     _removedLogs
       ..forEach(_logs.remove)
       ..clear();
@@ -348,18 +352,21 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
                 ),
               ),
               actions: [
-                ListenableBuilder(
-                  listenable: _updateListNotifier,
-                  builder: (context, _) => IconButton(
-                    onPressed: () {
-                      _setFilter(
-                        _filter == null
-                            ? (log) => log.level >= LogLevels.error
-                            : null,
-                      );
-                    },
-                    icon: const Icon(Icons.filter_alt),
-                    color: _filter == null ? null : _filterColor,
+                Visibility(
+                  visible: false,
+                  child: ListenableBuilder(
+                    listenable: _updateListNotifier,
+                    builder: (context, _) => IconButton(
+                      onPressed: () {
+                        _setFilter(
+                          _filter == null
+                              ? (log) => log.level >= LogLevels.error
+                              : null,
+                        );
+                      },
+                      icon: const Icon(Icons.filter_alt),
+                      color: _filter == null ? null : _filterColor,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -390,19 +397,22 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
                         behavior: ScrollConfiguration.of(context).copyWith(
                           scrollbars: false,
                         ),
-                        child: ScrollablePositionedList.builder(
+                        child: ScrollablePositionedList.separated(
                           itemScrollController: _itemScrollController,
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: _listPadding,
                           reverse: true,
                           itemCount: _logs.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
                           itemBuilder: (_, index) {
                             final log = _logs[index];
                             final item = LogItem(
+                              key: ObjectKey(log),
                               log,
                               widget.theme[log.level],
                               removed: _removedLogs.contains(log),
-                              key: ObjectKey(log),
+                              onTapDown: _pause,
                             );
 
                             if (index != 0 ||
