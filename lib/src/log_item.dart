@@ -70,14 +70,14 @@ class _LogItemState extends State<LogItem> {
     super.initState();
 
     _color = ansiColor2Color(widget.theme.data.normal.foregroundColor)!;
-    _messageBorderColor = _color.withValues(alpha: 0.3);
+    _messageBorderColor = _color.withValues(alpha: 0.4);
     _messageBackgroundColor = _color.withValues(alpha: 0.1);
     _activeItemsTextColor = _color;
-    _inactiveItemsTextColor = _color.withValues(alpha: 0.5);
+    _inactiveItemsTextColor = _color.withValues(alpha: 0.7);
     _traceIdTextColor =
         ansiColor2Color(widget.theme.main.traceIdStyle.foregroundColor) ??
             _color;
-    _traceIdBorderColor = _traceIdTextColor.withValues(alpha: 0.3);
+    _traceIdBorderColor = _traceIdTextColor.withValues(alpha: 0.4);
 
     _levelName = _buildLevelName();
     _time = _buildTime();
@@ -96,7 +96,7 @@ class _LogItemState extends State<LogItem> {
     super.didChangeDependencies();
 
     final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
-    _borderColor = Color.lerp(backgroundColor, _color, 0.3)!;
+    _borderColor = Color.lerp(backgroundColor, _color, 0.4)!;
   }
 
   Widget _buildLevelName() {

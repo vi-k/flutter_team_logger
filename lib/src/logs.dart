@@ -52,10 +52,11 @@ class Logs extends StatefulWidget {
 
 class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   static const _maxNewLogs = 100;
-  static const _listPadding = EdgeInsets.symmetric(horizontal: 6);
+  static const _listPadding = EdgeInsets.only(left: 6, right: 6);
   static const _pauseColor = Colors.amber;
   static const _onPauseColor = Colors.black;
   static const _filterColor = Colors.lightBlue;
+  static const _itemsSeparator = 8.0;
 
   /// Анимация скроллинга в [ScrollablePositionedList].
   ///
@@ -118,10 +119,16 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   late StreamSubscription<void> _onChangedSubscription;
 
   /// Фильтр логов.
-  bool Function(Log log)? _filter;
+  _Filter? _filter;
 
   /// Включен ли фильтр.
   bool get _filtered => _filter != null;
+
+  int get _logsCount => _filter?.logs.length ?? _logs.length;
+
+  int get _newLogsCount => _filter?.newLogs.length ?? _newLogs.length;
+
+  Log _logByIndex(int index) => (_filter?.logs ?? _logs)[index];
 
   @override
   void initState() {
@@ -175,13 +182,14 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
 
     _paused.value = false;
     widget.onResumed?.call();
-    if (_logs.isNotEmpty) {
+    if (_logsCount > 0) {
       _itemScrollController.scrollTo(
         index: 0,
         duration: widget.scrollToBottomDuration,
         curve: widget.scrollToBottomCurve,
       );
     }
+    _newLogsMode = true;
     _startAddingAnimation();
   }
 
@@ -201,22 +209,35 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
         final index = _newLogs.indexOf(log);
         if (index != -1) {
           _newLogs.removeAt(index);
+          _filter?.newLogs.remove(log);
         } else if (_paused.value) {
-          if (_filter?.call(log) ?? true) {
-            _removedLogs.add(log);
-          }
+          _removedLogs.add(log);
         } else {
           _logs.remove(log);
+          _filter?.logs.remove(log);
         }
 
       case LogStorageClear():
         _logs = [];
         _newLogs = [];
+        _filter?.logs.clear();
+        _filter?.newLogs.clear();
         _removedLogs = [];
+        _newLogsMode = false;
 
       case LogStorageAdd(:final log):
-        if (_filter?.call(log) ?? true) {
-          _newLogs.add(log);
+        var update = false;
+        _newLogs.add(log);
+        if (_filter case final filter?) {
+          if (filter(log)) {
+            update = true;
+            filter.newLogs.add(log);
+          }
+        } else {
+          update = true;
+        }
+
+        if (update) {
           _adjustValuesDependingOnLogsCount();
           _startAddingAnimation();
         }
@@ -224,7 +245,7 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   }
 
   void _adjustValuesDependingOnLogsCount() {
-    final newLogsCount = _newLogs.length;
+    final newLogsCount = _newLogsCount;
     final normalDuration = widget.scrollToBottomDuration.inMilliseconds;
     final duration = newLogsCount == 0
         ? normalDuration
@@ -243,15 +264,44 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
       return;
     }
 
-    final newLogsCount = _newLogs.length;
-    if (newLogsCount > _maxNewLogs) {
-      final extraLogsCount = newLogsCount - _maxNewLogs;
-      _logs.insertAll(0, _newLogs.take(extraLogsCount));
-      _newLogs.removeRange(0, extraLogsCount);
+    if (_filter case final filter?) {
+      if (filter.newLogs.isEmpty) {
+        _logs.insertAll(0, _newLogs);
+        _newLogs.clear();
+        return;
+      }
+
+      final newLogsCount = filter.newLogs.length;
+      Log lastNewLog;
+      if (newLogsCount > _maxNewLogs) {
+        final extraLogsCount = newLogsCount - _maxNewLogs;
+        final extraLogs = filter.newLogs.take(extraLogsCount).toList();
+        filter.logs.insertAll(0, extraLogs);
+        filter.newLogs.removeRange(0, extraLogsCount);
+        lastNewLog = extraLogs.last;
+      } else {
+        final log = filter.newLogs.removeAt(0);
+        filter.logs.insert(0, log);
+        lastNewLog = log;
+      }
+      final index = _newLogs.indexOf(lastNewLog);
+      if (index != -1) {
+        _logs.insertAll(0, _newLogs.take(index + 1));
+        _newLogs.removeRange(0, index + 1);
+      }
     } else {
-      final log = _newLogs.removeAt(0);
-      _logs.insert(0, log);
+      final newLogsCount = _newLogs.length;
+      if (newLogsCount > _maxNewLogs) {
+        final extraLogsCount = newLogsCount - _maxNewLogs;
+        final extraLogs = _newLogs.take(extraLogsCount);
+        _logs.insertAll(0, extraLogs);
+        _newLogs.removeRange(0, extraLogsCount);
+      } else {
+        final log = _newLogs.removeAt(0);
+        _logs.insert(0, log);
+      }
     }
+
     _adjustValuesDependingOnLogsCount();
     _updateList();
     _animationController
@@ -272,14 +322,12 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   }
 
   void _setFilter(bool Function(Log log)? filter) {
-    _filter = filter;
-    if (filter != null) {
-      _removedLogs.clear();
-      _newLogs = _newLogs.where(filter).toList();
-      _logs = _logs.where(filter).toList();
+    if (filter == null) {
+      _filter = null;
     } else {
-      _newLogs = [];
-      _logs = widget.logStorage.snapshot();
+      _filter = _Filter(filter)
+        ..logs.addAll(_logs.where(filter))
+        ..newLogs.addAll(_newLogs.where(filter));
     }
     _stopAddingAnimation();
     _updateList();
@@ -304,40 +352,25 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     const Text('Logs'),
-                    if (paused) ...[
+                    if (paused || _newLogsMode) ...[
                       Text(
-                        ' ${_logs.length}',
+                        ' $_logsCount',
                         style: TextStyle(
                           fontSize: 12,
                           color: _filtered ? _filterColor : null,
                         ),
                       ),
-                      if (_newLogs.isNotEmpty)
+                      if (_newLogsCount > 0)
                         Text(
-                          ' +${_newLogs.length}',
+                          ' +$_newLogsCount',
                           style: const TextStyle(
                             fontSize: 12,
                             color: _pauseColor,
                           ),
                         ),
-                    ] else if (_newLogsMode) ...[
-                      Text(
-                        ' ${_logs.length}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _filtered ? _filterColor : null,
-                        ),
-                      ),
-                      Text(
-                        ' +${_newLogs.length}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: _pauseColor,
-                        ),
-                      ),
                     ] else
                       Text(
-                        ' ${_logs.length + _newLogs.length}',
+                        ' ${_logsCount + _newLogsCount}',
                         style: TextStyle(
                           fontSize: 12,
                           color: _filtered ? _filterColor : null,
@@ -353,7 +386,7 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
               ),
               actions: [
                 Visibility(
-                  visible: false,
+                  // visible: false,
                   child: ListenableBuilder(
                     listenable: _updateListNotifier,
                     builder: (context, _) => IconButton(
@@ -397,22 +430,25 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
                         behavior: ScrollConfiguration.of(context).copyWith(
                           scrollbars: false,
                         ),
-                        child: ScrollablePositionedList.separated(
+                        child: ScrollablePositionedList.builder(
                           itemScrollController: _itemScrollController,
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: _listPadding,
                           reverse: true,
-                          itemCount: _logs.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
+                          itemCount: _logsCount,
                           itemBuilder: (_, index) {
-                            final log = _logs[index];
-                            final item = LogItem(
+                            final log = _logByIndex(index);
+                            final item = Padding(
                               key: ObjectKey(log),
-                              log,
-                              widget.theme[log.level],
-                              removed: _removedLogs.contains(log),
-                              onTapDown: _pause,
+                              padding: const EdgeInsets.only(
+                                bottom: _itemsSeparator,
+                              ),
+                              child: LogItem(
+                                log,
+                                widget.theme[log.level],
+                                removed: _removedLogs.contains(log),
+                                onTapDown: _pause,
+                              ),
                             );
 
                             if (index != 0 ||
@@ -449,4 +485,15 @@ class _LogsState extends State<Logs> with SingleTickerProviderStateMixin {
           ),
         ),
       );
+}
+
+final class _Filter {
+  final bool Function(Log log) filter;
+
+  final logs = <Log>[];
+  final newLogs = <Log>[];
+
+  _Filter(this.filter);
+
+  bool call(Log log) => filter(log);
 }
