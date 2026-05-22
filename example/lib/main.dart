@@ -19,26 +19,40 @@ Future<void> main() async {
         'tick': timer.tick,
         'now': DateTime.now(),
       };
-  // Data.loggableObject,
 
+  final timerLog = log.copyWith(name: 'timer');
   Timer.periodic(_timerPeriod, (timer) {
-    log.d('timer debug 1', data: () => data(timer));
-    log.d('timer debug 2', data: () => data(timer));
+    final traceId = TraceId.auto('timer_d');
+    timerLog.d('timer debug 1', data: () => data(timer), traceId: traceId);
+    timerLog.d('timer debug 2', data: () => data(timer), traceId: traceId);
   });
 
   Timer.periodic(_timerPeriod * 2, (timer) {
-    log.i('timer info 1', data: () => data(timer));
-    log.i('timer info 2', data: () => data(timer));
+    final traceId = TraceId.auto('timer_i');
+    timerLog.i('timer info 1', data: () => data(timer), traceId: traceId);
+    timerLog.i('timer info 2', data: () => data(timer), traceId: traceId);
   });
 
   Timer.periodic(_timerPeriod * 3, (timer) {
-    log.w('timer warning 1', data: () => data(timer));
-    log.w('timer warning 2', data: () => data(timer));
+    final traceId = TraceId.auto('timer_w');
+    timerLog.w('timer warning 1', data: () => data(timer), traceId: traceId);
+    timerLog.w('timer warning 2', data: () => data(timer), traceId: traceId);
   });
 
   Timer.periodic(_timerPeriod * 4, (timer) {
-    log.e('timer error 1', data: () => data(timer), error: Exception('test'));
-    log.e('timer error 2', data: () => data(timer), error: Exception('test'));
+    final traceId = TraceId.auto('timer_e');
+    timerLog.e(
+      'timer error 1',
+      data: () => data(timer),
+      error: Exception('test'),
+      traceId: traceId,
+    );
+    timerLog.e(
+      'timer error 2',
+      data: () => data(timer),
+      error: Exception('test'),
+      traceId: traceId,
+    );
   });
 
   await Chain.capture(
@@ -250,11 +264,9 @@ void f() {
   //   for (var i = logStorage.count; i < logStorage.maxCount; i++) {
   //     log.d(
   //       'test #$i',
-  //       traceId: TraceId.auto('test'),
+  //       traceId: TraceId.global(),
   //       data: Data.loggableObject,
   //     );
   //   }
   // });
-
-  // log.i('test test test');
 }
