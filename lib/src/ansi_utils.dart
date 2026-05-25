@@ -31,6 +31,7 @@ TextStyle ansiStyle2TextStyle(ansi.Style style, {double? fontSize}) =>
       fontWeight: style.isBold ? FontWeight.bold : null,
       fontStyle: style.isItalic ? FontStyle.italic : null,
       decoration: style.isUnderline ? TextDecoration.underline : null,
+      height: 1.2,
     );
 
 Color? ansiColor2Color(ansi.Color? color) => switch (color) {

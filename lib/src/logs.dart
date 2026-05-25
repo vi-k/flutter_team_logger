@@ -5,11 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_team_logger/src/utils/stream_notifier_ext.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:team_logger/team_logger.dart';
 
 import 'ansi_utils.dart';
-import 'filter.dart';
+import 'filter/filter.dart';
 import 'log_item.dart';
 import 'notifier.dart';
 import 'uikit/chip.dart' as ui;
@@ -20,12 +21,18 @@ final ThemeData _theme = ThemeData(
     brightness: Brightness.dark,
   ),
 );
-const int _maxNewLogs = 100;
-const EdgeInsets _listPadding = EdgeInsets.only(left: 6, right: 6);
-const Color _pauseColor = Colors.amber;
-const Color _onPauseColor = Colors.black;
-const Color _filterColor = Colors.cyan;
 const double _logsSeparator = 8;
+const double _listHorizontalPadding = 6;
+const EdgeInsets _listPadding = EdgeInsets.only(
+  left: _listHorizontalPadding,
+  right: _listHorizontalPadding,
+  top: _logsSeparator,
+);
+const EdgeInsetsGeometry _filterPadding =
+    EdgeInsets.symmetric(horizontal: _listHorizontalPadding, vertical: 4);
+const Color _pauseColor = Colors.deepOrangeAccent;
+const Color _onPauseColor = Colors.black;
+const Color _filterColor = Colors.lightGreen;
 
 class Logs extends StatefulWidget {
   /// Заголовок экрана.
@@ -73,6 +80,12 @@ class Logs extends StatefulWidget {
 
   static LogsState of(BuildContext context) =>
       _LogsInheritedWidget.of(context).controller;
+
+  static Filter filterOf(
+    BuildContext context, {
+    bool listen = true,
+  }) =>
+      _FilterInheritedWidget.of(context, listen: listen).filter;
 }
 
 class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
@@ -96,14 +109,14 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   Listenable get onLogsChanged => _onLogsChanged;
   final _onLogsChanged = Notifier();
 
-  /// Нотификатор для оповещения об обновлении видимой части логов.
-  Listenable get onViewChanged => _onViewChanged;
-  final _onViewChanged = Notifier();
-
   /// Флаг паузы.
   bool get paused => _paused.value;
   ValueListenable<bool> get onPauseChanged => _paused;
   final _paused = ValueNotifier<bool>(false);
+
+  bool get filterIsVisible => _filterIsVisible.value;
+  ValueListenable<bool> get onFilterVisibilityChanged => _filterIsVisible;
+  final _filterIsVisible = ValueNotifier<bool>(false);
 
   /// Логи.
   ///
@@ -111,16 +124,16 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   /// быть удалены.
   ///
   /// Следим за изменениями в [LogStorage] через [LogStorage.onChanged]. На
-  /// время паузы не изменяем список: новые логи накапливаем в [newLogs],
+  /// время паузы не изменяем список: новые логи накапливаем в [_newLogs],
   /// удаляемые - в [_removedLogs].
-  List<Log> logs = <Log>[];
+  final _logs = <Log>[];
 
   /// Новые логи.
   ///
   /// Все новые логи накапливаются в этом списке и постепенно изымаются из
   /// него в [_startAddingAnimation]. Во время паузы не изымаются, только
   /// накапливаются.
-  List<Log> newLogs = <Log>[];
+  final _newLogs = <Log>[];
 
   /// Режим новых логов.
   ///
@@ -131,7 +144,9 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   /// В обычном случае, когда логи появляются по одному или небольшим
   /// количеством, этот режим не включается, и в AppBar показывается сразу
   /// сумма текущих и новых логов: "1000".
-  bool newLogsMode = false;
+  bool _newLogsMode = false;
+
+  bool get newLogsSeparately => paused || _newLogsMode;
 
   /// Удаляемые логи, добавленные во время паузы
   ///
@@ -143,29 +158,19 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
 
   /// Фильтр логов.
   late final filter = Filter(
-    logs: () => logs,
-    newLogs: () => newLogs,
+    logs: () => _logs,
+    newLogs: () => _newLogs,
   );
-
-  int get logsCount => filter.isEnabled ? filter.logs.length : logs.length;
-
-  int get newLogsCount =>
-      filter.isEnabled ? filter.newLogs.length : newLogs.length;
-
-  Log logByIndex(int index) => (filter.isEnabled ? filter.logs : logs)[index];
 
   @override
   void initState() {
     super.initState();
 
-    logs = widget.logStorage.snapshot();
+    _logs.addAll(widget.logStorage.snapshot());
     _subscribeToLogStorage();
 
     _onLogsChanged
       ..addListener(_handleLogsChanged)
-      ..update();
-    _onViewChanged
-      ..addListener(_handleViewChanged)
       ..update();
 
     _animationController.addStatusListener(_animationStatusListener);
@@ -176,7 +181,6 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _onLogsChanged.dispose();
-    _onViewChanged.dispose();
     _paused.dispose();
     filter.dispose();
     _onChangedSubscription.cancel();
@@ -201,8 +205,11 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
 
   void _filterChanged() {
     _stopAddingAnimation();
-    _onViewChanged.update();
     _startAddingAnimation();
+  }
+
+  void toggleFilterVisibility() {
+    _filterIsVisible.value = !_filterIsVisible.value;
   }
 
   void pause() {
@@ -215,24 +222,21 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   void resume() {
     if (!paused) return;
 
-    _removedLogs.forEach(logs.remove);
-    if (filter.isEnabled) {
-      _removedLogs.forEach(filter.logs.remove);
-    }
-    _removedLogs.clear();
+    _removedLogs
+      ..forEach(filter.removeLog)
+      ..clear();
     _onLogsChanged.update();
-    _onViewChanged.update();
 
     _paused.value = false;
     widget.onResumed?.call();
-    if (logsCount > 0) {
+    if (filter.logs.isNotEmpty) {
       itemScrollController.scrollTo(
         index: 0,
         duration: widget.scrollToBottomDuration,
         curve: widget.scrollToBottomCurve,
       );
     }
-    newLogsMode = true;
+    _newLogsMode = true;
     _startAddingAnimation();
   }
 
@@ -247,134 +251,60 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   bool isLogRemoved(Log log) => _removedLogs.contains(log);
 
   void _logStorageChanged(LogStorageEvent event) {
-    var viewUpdated = false;
-
     switch (event) {
       case LogStorageRemove(:final log):
-        final index = newLogs.indexOf(log);
-        if (index != -1) {
-          newLogs.removeAt(index);
-          if (filter.isEnabled) {
-            filter.newLogs.remove(log);
-          }
-        } else if (paused) {
-          _removedLogs.add(log);
-          viewUpdated = true;
-        } else {
-          final updated = logs.remove(log);
-          if (filter.isEnabled) {
-            viewUpdated = filter.logs.remove(log);
+        if (!filter.removeNewLog(log)) {
+          if (paused) {
+            _removedLogs.add(log);
+            filter.update();
           } else {
-            viewUpdated = updated;
+            filter.removeLog(log);
           }
         }
 
       case LogStorageClear():
-        logs.clear();
-        newLogs.clear();
-        newLogsMode = false;
-        viewUpdated = true;
-
-        if (filter.isEnabled) {
-          filter.logs.clear();
-          filter.newLogs.clear();
-        }
+        _logs.clear();
+        _newLogs.clear();
+        _newLogsMode = false;
         _removedLogs = [];
+        filter.update();
 
       case LogStorageAdd(:final log):
-        newLogs.add(log);
-
-        if (filter.isEnabled) {
-          if (filter(log)) {
-            viewUpdated = true;
-            filter.newLogs.add(log);
-          }
-        } else {
-          viewUpdated = true;
-        }
-
-        if (viewUpdated) {
+        if (filter.addNewLog(log)) {
           _startAddingAnimation();
         }
     }
 
     _onLogsChanged.update();
-
-    if (viewUpdated) {
-      _onViewChanged.update();
-    }
   }
 
   void _handleLogsChanged() {
     // Adjust values depending on logs count
-    final newLogsCount = this.newLogsCount;
+    final newLogsCount = filter.newLogs.length;
     final normalDuration = widget.scrollToBottomDuration.inMilliseconds;
     final duration = newLogsCount == 0
         ? normalDuration
-        : (normalDuration / math.exp((newLogsCount - 1) / 10)).round();
+        : (normalDuration / math.exp((newLogsCount - 1) / 5)).round();
     _animationController.duration = Duration(milliseconds: duration);
 
     if (newLogsCount >= 10) {
-      newLogsMode = true;
+      _newLogsMode = true;
     } else if (newLogsCount == 0) {
-      newLogsMode = false;
+      _newLogsMode = false;
     }
-  }
-
-  void _handleViewChanged() {
-    //
   }
 
   void _startAddingAnimation() {
-    if (_animationController.isAnimating || newLogs.isEmpty || paused) {
+    if (_animationController.isAnimating || paused) {
       return;
     }
 
-    if (filter.isEnabled) {
-      if (filter.newLogs.isEmpty) {
-        logs.insertAll(0, newLogs);
-        newLogs.clear();
-        _onLogsChanged.update();
-        return;
-      }
-
-      final newLogsCount = filter.newLogs.length;
-      Log lastNewLog;
-      if (newLogsCount > _maxNewLogs) {
-        final extraLogsCount = newLogsCount - _maxNewLogs;
-        final extraLogs = filter.newLogs.take(extraLogsCount).toList();
-        filter.logs.insertAll(0, extraLogs);
-        filter.newLogs.removeRange(0, extraLogsCount);
-        lastNewLog = extraLogs.last;
-      } else {
-        final log = filter.newLogs.removeAt(0);
-        filter.logs.insert(0, log);
-        lastNewLog = log;
-      }
-      final index = newLogs.indexOf(lastNewLog);
-      if (index != -1) {
-        logs.insertAll(0, newLogs.take(index + 1));
-        newLogs.removeRange(0, index + 1);
-      }
-    } else {
-      final newLogsCount = newLogs.length;
-      if (newLogsCount > _maxNewLogs) {
-        final extraLogsCount = newLogsCount - _maxNewLogs;
-        final extraLogs = newLogs.take(extraLogsCount);
-        logs.insertAll(0, extraLogs);
-        newLogs.removeRange(0, extraLogsCount);
-      } else {
-        final log = newLogs.removeAt(0);
-        logs.insert(0, log);
-      }
+    if (filter.moveNextNewLogToLogs()) {
+      _onLogsChanged.update();
+      _animationController
+        ..reset()
+        ..forward();
     }
-
-    _onLogsChanged.update();
-    _onViewChanged.update();
-
-    _animationController
-      ..reset()
-      ..forward();
   }
 
   void _stopAddingAnimation() {
@@ -392,34 +322,38 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) => _LogsInheritedWidget(
         controller: this,
-        child: Theme(
-          data: _theme,
-          child: ValueListenableBuilder<bool>(
-            valueListenable: onPauseChanged,
-            builder: (context, paused, _) => Scaffold(
-              appBar: AppBar(
-                forceMaterialTransparency: true,
-                title: const _LogsAppBarTitle(),
-                actions: const [
-                  Visibility(
-                    visible: false,
-                    child: _FilterButton(),
-                  ),
-                  _ClearButton(),
-                ],
-              ),
-              body: const SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _FilterView(),
-                    Expanded(child: _LogsList()),
+        child: _FilterInheritedWidget(
+          filter: filter,
+          child: Theme(
+            data: _theme,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: onPauseChanged,
+              builder: (context, paused, _) => Scaffold(
+                appBar: AppBar(
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.05),
+                  surfaceTintColor: Colors.transparent,
+                  title: const _LogsAppBarTitle(),
+                  actions: const [
+                    _FilterButton(),
+                    _ClearButton(),
                   ],
                 ),
+                body: const SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _FilterView(),
+                      Expanded(child: _LogsList()),
+                    ],
+                  ),
+                ),
+                floatingActionButton: paused //
+                    ? const _ResumeButton()
+                    : null,
               ),
-              floatingActionButton: paused //
-                  ? const _ResumeButton()
-                  : null,
             ),
           ),
         ),
@@ -445,6 +379,30 @@ class _LogsInheritedWidget extends InheritedWidget {
   bool updateShouldNotify(_LogsInheritedWidget oldWidget) => false;
 }
 
+class _FilterInheritedWidget extends InheritedNotifier {
+  final Filter filter;
+
+  _FilterInheritedWidget({
+    required this.filter,
+    required super.child,
+  }) : super(notifier: filter.asListenable());
+
+  static _FilterInheritedWidget of(
+    BuildContext context, {
+    required bool listen,
+  }) =>
+      maybeOf(context, listen: listen) ??
+      (throw Exception('$_FilterInheritedWidget not found in the context.'));
+
+  static _FilterInheritedWidget? maybeOf(
+    BuildContext context, {
+    required bool listen,
+  }) =>
+      listen
+          ? context.dependOnInheritedWidgetOfExactType<_FilterInheritedWidget>()
+          : context.getInheritedWidgetOfExactType<_FilterInheritedWidget>();
+}
+
 class _LogsAppBarTitle extends StatelessWidget {
   const _LogsAppBarTitle({
     // ignore: unused_element_parameter
@@ -454,6 +412,7 @@ class _LogsAppBarTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Logs.of(context);
+    final filter = Logs.filterOf(context);
 
     return ValueListenableBuilder<bool>(
       valueListenable: controller.onPauseChanged,
@@ -463,17 +422,17 @@ class _LogsAppBarTitle extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(controller.widget.title),
-            if (paused || controller.newLogsMode) ...[
+            if (controller.newLogsSeparately) ...[
               Text(
-                ' ${controller.logsCount}',
+                ' ${filter.logs.length}',
                 style: TextStyle(
                   fontSize: 12,
                   color: controller.filter.isEnabled ? _filterColor : null,
                 ),
               ),
-              if (controller.newLogsCount > 0)
+              if (filter.newLogs.isNotEmpty)
                 Text(
-                  ' +${controller.newLogsCount}',
+                  ' +${filter.newLogs.length}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: _pauseColor,
@@ -481,7 +440,7 @@ class _LogsAppBarTitle extends StatelessWidget {
                 ),
             ] else
               Text(
-                ' ${controller.logsCount + controller.newLogsCount}',
+                ' ${filter.logs.length + filter.newLogs.length}',
                 style: TextStyle(
                   fontSize: 12,
                   color: controller.filter.isEnabled ? _filterColor : null,
@@ -508,14 +467,12 @@ class _FilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Logs.of(context);
+    final filter = Logs.filterOf(context);
 
-    return ListenableBuilder(
-      listenable: controller.onViewChanged,
-      builder: (context, _) => IconButton(
-        onPressed: controller.filter.disable,
-        icon: const Icon(Icons.filter_alt),
-        color: controller.filter.isEnabled ? _filterColor : null,
-      ),
+    return IconButton(
+      onPressed: controller.toggleFilterVisibility,
+      icon: const Icon(Icons.filter_alt),
+      color: filter.isEnabled ? _filterColor : null,
     );
   }
 }
@@ -547,23 +504,76 @@ class _FilterView extends StatefulWidget {
   State<_FilterView> createState() => _FilterViewState();
 }
 
-class _FilterViewState extends State<_FilterView> {
-  static const double _itemsSeparator = 6;
-
+class _FilterViewState extends State<_FilterView>
+    with SingleTickerProviderStateMixin {
   late final LogsState _controller;
 
-  final Map<int, int> _levelsLogsCount = {};
-  final Map<int, int> _newLevelsLogsCount = {};
-  List<int> _sortedLevels = [];
+  late final _animationController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
 
-  final Map<String, int> _loggersLogsCount = {};
-  final Map<String, int> _newLoggersLogsCount = {};
-  List<String> _sortedLoggers = [];
+  late final _animation =
+      _animationController.drive(CurveTween(curve: Curves.ease));
 
-  final Map<String?, int> _traceIdsLogsCount = {};
-  final Map<String?, int> _newTraceIdsLogsCount = {};
-  List<String?> _sortedTraceIds = [];
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = Logs.of(context)
+      ..onFilterVisibilityChanged.addListener(_onFilterVisibilityChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.onFilterVisibilityChanged
+        .removeListener(_onFilterVisibilityChanged);
+    super.dispose();
+  }
+
+  void _onFilterVisibilityChanged() {
+    if (_controller.filterIsVisible) {
+      _animationController.forward();
+    } else {
+      _animationController.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+        padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _FilterEdit(animation: _animation),
+            _FilterResult(showFilterAnimation: _animation),
+          ],
+        ),
+      );
+}
+
+class _FilterEdit extends StatefulWidget {
+  final Animation<double> animation;
+
+  const _FilterEdit({
+    required this.animation,
+    // ignore: unused_element_parameter
+    super.key,
+  });
+
+  @override
+  State<_FilterEdit> createState() => _FilterEditState();
+}
+
+class _FilterEditState extends State<_FilterEdit> {
+  static const double _itemsSeparator = 2;
+
+  late final LogsState _controller;
+  late final Color _levelColor;
+  late final Color _loggerColor;
   late final Color _traceIdColor;
+  late final Color _tagsColor;
 
   @override
   void initState() {
@@ -571,207 +581,322 @@ class _FilterViewState extends State<_FilterView> {
 
     _controller = Logs.of(context);
 
+    _levelColor = ansiColor2Color(
+          _controller.widget.theme.debug.data.normal.foregroundColor,
+        ) ??
+        _filterColor;
+    _loggerColor = ansiColor2Color(
+          _controller.widget.theme.info.data.pathStyle.foregroundColor,
+        ) ??
+        _filterColor;
     _traceIdColor = ansiColor2Color(
           _controller.widget.theme.traceIdStyle.foregroundColor,
         ) ??
         _filterColor;
-
-    _controller.onLogsChanged.addListener(_onLogsChanged);
-    _onLogsChanged();
+    _tagsColor = ansiColor2Color(
+          _controller.widget.theme.tagsStyle.foregroundColor,
+        ) ??
+        _filterColor;
   }
 
-  @override
-  void dispose() {
-    _controller.onLogsChanged.removeListener(_onLogsChanged);
-
-    super.dispose();
-  }
-
-  void _onLogsChanged() {
-    setState(() {
-      _levelsLogsCount.clear();
-      _newLevelsLogsCount.clear();
-      _loggersLogsCount.clear();
-      _newLoggersLogsCount.clear();
-      _traceIdsLogsCount.clear();
-      _newTraceIdsLogsCount.clear();
-
-      final logs = _controller.logs;
-      final newLogs = _controller.newLogs;
-
-      _calcLevelsLogsCount(logs, _levelsLogsCount);
-      _calcLoggersLogsCount(logs, _loggersLogsCount);
-      _calcTraceIdsLogsCount(logs, _traceIdsLogsCount);
-      if (_controller.paused || _controller.newLogsMode) {
-        _calcLevelsLogsCount(newLogs, _newLevelsLogsCount);
-        _calcLoggersLogsCount(newLogs, _newLoggersLogsCount);
-        _calcTraceIdsLogsCount(newLogs, _newTraceIdsLogsCount);
-      } else {
-        _calcLevelsLogsCount(newLogs, _levelsLogsCount);
-        _calcLoggersLogsCount(newLogs, _loggersLogsCount);
-        _calcTraceIdsLogsCount(newLogs, _traceIdsLogsCount);
-      }
-
-      final levels = _levelsLogsCount.keys.toSet();
-      final loggers = _loggersLogsCount.keys.toSet();
-      final traceIds = _traceIdsLogsCount.keys.toSet();
-
-      final filter = _controller.filter;
-      if (filter.isEnabled) {
-        levels.addAll(filter.levels);
-        loggers.addAll(filter.loggers);
-        traceIds.addAll(filter.traceIds);
-      }
-
-      _sortedLevels = levels.toList()..sort();
-      _sortedLoggers = loggers.toList()..sort();
-      _sortedTraceIds = traceIds.toList()..sort(_sortNullableStrings);
-    });
-  }
-
-  int _sortNullableStrings(String? a, String? b) => a == null
-      ? -1
-      : b == null
-          ? 1
-          : a.compareTo(b);
-
-  void _calcLevelsLogsCount(List<Log> logs, Map<int, int> to) {
-    for (final log in logs) {
-      final level = log.level;
-      to[level] = (to[level] ?? 0) + 1;
-    }
-  }
-
-  void _calcLoggersLogsCount(List<Log> logs, Map<String, int> to) {
-    for (final log in logs) {
-      final path = log.path;
-      to[path] = (to[path] ?? 0) + 1;
-    }
-  }
-
-  void _calcTraceIdsLogsCount(List<Log> logs, Map<String?, int> to) {
-    for (final log in logs) {
-      for (final traceId in log.traceIds) {
-        final group = traceId.group;
-        to[group] = (to[group] ?? 0) + 1;
-      }
-    }
-  }
-
-  Widget _buildLevelChip(int level, {bool first = false}) {
+  Widget _buildLevelChip(
+    int level, {
+    String keyPrefix = '',
+    bool showCount = true,
+  }) {
     final name = LogLevels.name(level);
     final color = ansiColor2Color(
           _controller.widget.theme[level].data.normal.foregroundColor,
         ) ??
         _filterColor;
+    final filter = _controller.filter;
 
-    return _wrapWithStarter(
-      label: 'level',
+    return ui.FilterChip(
+      key: Key('${keyPrefix}level:$name'),
       color: color,
-      first: first,
-      child: ui.FilterChip(
-        key: Key('level:$name'),
-        color: color,
-        title: name,
-        logsCount: _levelsLogsCount[level] ?? 0,
-        newLogsCount: _newLevelsLogsCount[level] ?? 0,
-        active: _controller.filter.levelEnabled(level),
-        onPressed: () {
-          _controller.filter.toggleLevel(level);
-        },
-        onLongPress: () {
-          _controller.filter.toggleOnlyLevel(level);
-        },
-      ),
+      inactiveBackgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      title: name,
+      logsCount: showCount ? filter.availableLevels[level] : null,
+      onPressed: () {
+        filter.orLevel(level);
+      },
+      onLongPress: () {
+        filter.andLevel(level);
+      },
     );
   }
 
-  Widget _buildLoggerChip(String logger, {bool first = false}) =>
-      _wrapWithStarter(
-        label: 'logger',
-        color: _filterColor,
-        first: first,
-        child: ui.FilterChip(
-          key: Key('logger:$logger'),
-          color: _filterColor,
-          title: logger,
-          logsCount: _loggersLogsCount[logger] ?? 0,
-          newLogsCount: _newLoggersLogsCount[logger] ?? 0,
-          active: _controller.filter.loggerEnabled(logger),
-          onPressed: () {
-            _controller.filter.toggleLogger(logger);
-          },
-          onLongPress: () {
-            _controller.filter.toggleOnlyLogger(logger);
-          },
-        ),
-      );
-
-  Widget _buildTraceIdChip(String? group, {bool first = false}) =>
-      _wrapWithStarter(
-        label: 'trace id',
-        color: _traceIdColor,
-        first: first,
-        child: ui.FilterChip(
-          color: _traceIdColor,
-          title: group ?? 'global',
-          logsCount: _traceIdsLogsCount[group] ?? 0,
-          newLogsCount: _newTraceIdsLogsCount[group] ?? 0,
-          active: _controller.filter.traceIdEnabled(group),
-          onPressed: () {
-            _controller.filter.toggleTraceId(group);
-          },
-          onLongPress: () {
-            _controller.filter.toggleOnlyTraceId(group);
-          },
-        ),
-      );
-
-  Widget _wrapWithStarter({
-    required String label,
-    required Color color,
-    required bool first,
-    required Widget child,
+  Widget _buildLoggerChip(
+    String logger, {
+    String keyPrefix = '',
+    bool showCount = true,
   }) {
-    if (!first) return child;
+    final filter = _controller.filter;
 
-    return Row(
-      key: child.key,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _Starter(
-          label: label,
-          color: color,
-          padding: const EdgeInsets.only(right: _itemsSeparator),
-        ),
-        child,
-      ],
+    return ui.FilterChip(
+      key: Key('${keyPrefix}logger:$logger'),
+      color: _loggerColor,
+      inactiveBackgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      title: logger,
+      logsCount: showCount ? filter.availableLoggers[logger] : null,
+      onPressed: () {
+        filter.orLogger(logger);
+      },
+      onLongPress: () {
+        filter.andLogger(logger);
+      },
+    );
+  }
+
+  Widget _buildTraceIdChip(
+    String? group, {
+    String keyPrefix = '',
+    bool showCount = true,
+  }) {
+    final filter = _controller.filter;
+
+    return ui.FilterChip(
+      key: Key(
+        group == null
+            ? '${keyPrefix}global_traceId'
+            : '${keyPrefix}traceId:$group',
+      ),
+      color: _traceIdColor,
+      inactiveBackgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      title: group ?? '<global>',
+      logsCount: showCount ? filter.availableTraceIds[group] : null,
+      onPressed: () {
+        filter.orTraceId(group);
+      },
+      onLongPress: () {
+        filter.andTraceId(group);
+      },
+    );
+  }
+
+  Widget _buildTagChip(
+    String tag, {
+    String keyPrefix = '',
+    bool showCount = true,
+  }) {
+    final filter = _controller.filter;
+
+    return ui.FilterChip(
+      key: Key('${keyPrefix}tag:$tag'),
+      color: _tagsColor,
+      inactiveBackgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      title: tag,
+      logsCount: showCount ? filter.availableTags[tag] : null,
+      onPressed: () {
+        filter.orTag(tag);
+      },
+      onLongPress: () {
+        filter.andTag(tag);
+      },
     );
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-        listenable: _controller.filter,
-        builder: (context, _) => Padding(
-          padding: const EdgeInsets.only(
-            left: _itemsSeparator,
-            right: _itemsSeparator,
-            bottom: _itemsSeparator,
-          ),
-          child: Wrap(
-            spacing: _itemsSeparator,
-            runSpacing: _itemsSeparator,
-            children: [
-              for (final (index, level) in _sortedLevels.indexed)
-                _buildLevelChip(level, first: index == 0),
-              for (final (index, logger) in _sortedLoggers.indexed)
-                _buildLoggerChip(logger, first: index == 0),
-              for (final (index, group) in _sortedTraceIds.indexed)
-                _buildTraceIdChip(group, first: index == 0),
-            ],
+  Widget build(BuildContext context) {
+    final filter = Logs.filterOf(context);
+
+    return AnimatedBuilder(
+      animation: widget.animation,
+      builder: (context, child) => ClipRect(
+        child: Align(
+          heightFactor: widget.animation.value,
+          alignment: Alignment.bottomCenter,
+          child: child,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(
+          left: _itemsSeparator,
+          right: _itemsSeparator,
+          bottom: _itemsSeparator,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _FilterEditRow(
+              label: 'level',
+              color: _levelColor,
+              children:
+                  filter.availableLevels.keys.map(_buildLevelChip).toList(),
+            ),
+            _FilterEditRow(
+              label: 'logger',
+              color: _loggerColor,
+              children:
+                  filter.availableLoggers.keys.map(_buildLoggerChip).toList(),
+            ),
+            _FilterEditRow(
+              label: 'trace',
+              color: _traceIdColor,
+              children:
+                  filter.availableTraceIds.keys.map(_buildTraceIdChip).toList(),
+            ),
+            _FilterEditRow(
+              label: 'tags',
+              color: _tagsColor,
+              children: filter.availableTags.keys.map(_buildTagChip).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterEditRow extends StatelessWidget {
+  static const double _itemsSeparator = 2;
+
+  final Color color;
+  final String label;
+  final List<Widget> children;
+
+  const _FilterEditRow({
+    // ignore: unused_element_parameter
+    super.key,
+    required this.color,
+    required this.label,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) => children.isEmpty
+      ? const SizedBox.shrink()
+      : Row(
+          children: [
+            _Starter(
+              label: label,
+              color: color,
+              padding: const EdgeInsets.only(right: _itemsSeparator),
+            ),
+            Expanded(
+              child: Wrap(
+                spacing: _itemsSeparator,
+                runSpacing: _itemsSeparator,
+                children: children,
+              ),
+            ),
+          ],
+        );
+}
+
+class _FilterResult extends StatefulWidget {
+  final Animation<double> showFilterAnimation;
+
+  const _FilterResult({
+    required this.showFilterAnimation,
+  });
+
+  @override
+  State<_FilterResult> createState() => _FilterResultState();
+}
+
+class _FilterResultState extends State<_FilterResult>
+    with SingleTickerProviderStateMixin {
+  late final _animationController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 300),
+  );
+
+  late final _animation =
+      _animationController.drive(CurveTween(curve: Curves.ease));
+
+  late Filter _filter;
+  late bool _isFilterEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _filter = Logs.filterOf(context, listen: false)
+      ..addListener(_onFilterChanged);
+    _isFilterEnabled = _filter.isEnabled;
+  }
+
+  @override
+  void dispose() {
+    _filter.removeListener(_onFilterChanged);
+    super.dispose();
+  }
+
+  void _onFilterChanged() {
+    if (_filter.isEnabled != _isFilterEnabled) {
+      _isFilterEnabled = _filter.isEnabled;
+      if (_isFilterEnabled) {
+        _animationController.forward();
+      } else {
+        _animationController.reverse();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Logs.of(context);
+    final filter = Logs.filterOf(context);
+
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) => ClipRect(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          heightFactor: _animation.value,
+          child: Material(
+            clipBehavior: Clip.antiAlias,
+            color: _filterColor.withValues(alpha: 0.1),
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: _filterColor),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: InkWell(
+              onTap: controller.toggleFilterVisibility,
+              focusColor: _filterColor.withValues(alpha: 0.2),
+              highlightColor: _filterColor.withValues(alpha: 0.3),
+              splashColor: _filterColor.withValues(alpha: 0.4),
+              hoverColor: _filterColor.withValues(alpha: 0.1),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: _filterPadding,
+                      child: RichText(
+                        text: ansiText2TextSpan(
+                          filter
+                              .toColorizedString(controller.widget.theme.info),
+                          defaulStyle: controller.widget.theme.info.data.normal,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                  AnimatedBuilder(
+                    animation: widget.showFilterAnimation,
+                    builder: (context, child) => ClipRect(
+                      child: Align(
+                        widthFactor: widget.showFilterAnimation.value,
+                        heightFactor: widget.showFilterAnimation.value,
+                        alignment: Alignment.centerLeft,
+                        child: child,
+                      ),
+                    ),
+                    child: IconButton(
+                      onPressed: filter.undo,
+                      iconSize: 16,
+                      icon: const Icon(Icons.backspace),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _LogsList extends StatelessWidget {
@@ -783,6 +908,7 @@ class _LogsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Logs.of(context);
+    final filter = Logs.filterOf(context);
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
@@ -797,54 +923,51 @@ class _LogsList extends StatelessWidget {
 
         return false;
       },
-      child: ListenableBuilder(
-        listenable: controller.onViewChanged,
-        builder: (context, _) => Stack(
-          children: [
-            ScrollConfiguration(
-              behavior: ScrollConfiguration.of(context).copyWith(
-                scrollbars: false,
-              ),
-              child: ScrollablePositionedList.builder(
-                itemScrollController: controller.itemScrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: _listPadding,
-                reverse: true,
-                itemCount: controller.logsCount,
-                itemBuilder: (_, index) {
-                  final log = controller.logByIndex(index);
-                  final item = Padding(
-                    key: ObjectKey(log),
-                    padding: const EdgeInsets.only(
-                      bottom: _logsSeparator,
-                    ),
-                    child: LogItem(
-                      log,
-                      controller.widget.theme[log.level],
-                      removed: controller.isLogRemoved(log),
-                      onTapDown: controller.pause,
-                    ),
-                  );
-
-                  if (index != 0 || !controller.animation.isAnimating) {
-                    return item;
-                  }
-
-                  return AnimatedBuilder(
-                    animation: controller.animation,
-                    builder: (context, _) => ClipRect(
-                      child: Align(
-                        heightFactor: controller.animation.value,
-                        alignment: Alignment.topCenter,
-                        child: item,
-                      ),
-                    ),
-                  );
-                },
-              ),
+      child: Stack(
+        children: [
+          ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              scrollbars: false,
             ),
-          ],
-        ),
+            child: ScrollablePositionedList.builder(
+              itemScrollController: controller.itemScrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: _listPadding,
+              reverse: true,
+              itemCount: filter.logs.length,
+              itemBuilder: (_, index) {
+                final log = filter.logs[index];
+                final item = Padding(
+                  key: ObjectKey(log),
+                  padding: const EdgeInsets.only(
+                    bottom: _logsSeparator,
+                  ),
+                  child: LogItem(
+                    log,
+                    controller.widget.theme[log.level],
+                    removed: controller.isLogRemoved(log),
+                    onTapDown: controller.pause,
+                  ),
+                );
+
+                if (index != 0 || !controller.animation.isAnimating) {
+                  return item;
+                }
+
+                return AnimatedBuilder(
+                  animation: controller.animation,
+                  builder: (context, _) => ClipRect(
+                    child: Align(
+                      heightFactor: controller.animation.value,
+                      alignment: Alignment.topCenter,
+                      child: item,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -885,25 +1008,12 @@ class _Starter extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: padding,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Container(
-            //   width: 4,
-            //   height: 6,
-            //   decoration: BoxDecoration(
-            //     borderRadius: BorderRadius.circular(100),
-            //     color: color,
-            //   ),
-            // ),
-            Text(
-              '$label:',
-              style: TextStyle(
-                fontSize: 9,
-                color: color,
-              ),
-            ),
-          ],
+        child: Text(
+          '$label:',
+          style: TextStyle(
+            fontSize: 9,
+            color: color,
+          ),
         ),
       );
 }

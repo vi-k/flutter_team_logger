@@ -2,7 +2,7 @@
 # See https://dart.dev/tools/pub/glossary#lockfile
 packages:
   ansi_escape_codes:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: ansi_escape_codes
       sha256: "4782c8108bba9ef04653625facb38d171dceebc187a298e663428952b63f5405"
@@ -76,7 +76,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.1.11"
+    version: "0.1.16"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -275,10 +275,10 @@ packages:
     dependency: "direct main"
     description:
       name: team_logger
-      sha256: e511c11781b985710337be645761e1038f735050e1c782111a545a43709ace0a
+      sha256: "0c92f5b36e9003ac4cf1ebd08eedc852dc6a12fc07b8cbbf7f16672a80f92e18"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.67"
+    version: "0.1.68"
   term_glyph:
     dependency: transitive
     description:

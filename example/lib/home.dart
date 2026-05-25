@@ -20,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute<void>(
         builder: (_) => Logs(
-          theme: theme,
+          theme: uiTheme,
           logStorage: logStorage,
           onPaused: () => _log.w('[b]paused[/b]'),
           onResumed: () => _log.w('[b]resumed[/b]'),
