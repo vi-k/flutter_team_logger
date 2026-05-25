@@ -71,6 +71,7 @@ class _ChipState extends State<Chip> with SingleTickerProviderStateMixin {
           padding: const EdgeInsets.all(1),
           child: FilledButton(
             style: FilledButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.standard,
               minimumSize: const Size(50, 0),
               padding: _padding,
