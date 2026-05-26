@@ -49,7 +49,7 @@ class _LogItemState extends State<LogItem> {
   late final Widget? _error;
   late final Widget? _stackTrace;
   late final Color _color;
-  late final Color _borderColor;
+  late Color _borderColor;
   late final Color _messageBorderColor;
   late final Color _messageBackgroundColor;
 

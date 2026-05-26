@@ -258,13 +258,13 @@ void f() {
   );
 
   // For debugging:
-  Timer(const Duration(seconds: 10), () {
-    for (var i = logStorage.count; i < logStorage.maxCount; i++) {
-      log.d(
-        'test #$i',
-        traceId: TraceId.global(),
-        data: Data.loggableObject,
-      );
-    }
-  });
+  // Timer(const Duration(seconds: 10), () {
+  //   for (var i = logStorage.count; i < logStorage.maxCount; i++) {
+  //     log.d(
+  //       'test #$i',
+  //       traceId: TraceId.global(),
+  //       data: Data.loggableObject,
+  //     );
+  //   }
+  // });
 }

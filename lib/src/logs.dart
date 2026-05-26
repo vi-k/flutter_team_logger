@@ -21,6 +21,13 @@ final ThemeData _theme = ThemeData(
     brightness: Brightness.dark,
   ),
 );
+
+final Color _appBarColor = Colors.lightBlue.withValues(alpha: 0.05);
+final Color _appBarPausedColor = Colors.white.withValues(alpha: 0.05);
+const Color _pauseColor = Colors.deepOrange;
+final Color _onPauseColor = Color.lerp(_pauseColor, Colors.white, 0.8)!;
+const Color _filterColor = Colors.lightGreen;
+
 const double _logsSeparator = 8;
 const double _listHorizontalPadding = 6;
 const EdgeInsets _listPadding = EdgeInsets.only(
@@ -30,9 +37,6 @@ const EdgeInsets _listPadding = EdgeInsets.only(
 );
 const EdgeInsetsGeometry _filterPadding =
     EdgeInsets.symmetric(horizontal: _listHorizontalPadding, vertical: 4);
-const Color _pauseColor = Colors.deepOrangeAccent;
-const Color _onPauseColor = Colors.black;
-const Color _filterColor = Colors.lightGreen;
 
 class Logs extends StatefulWidget {
   /// Заголовок экрана.
@@ -110,13 +114,16 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   final _onLogsChanged = Notifier();
 
   /// Флаг паузы.
-  bool get paused => _paused.value;
-  ValueListenable<bool> get onPauseChanged => _paused;
-  final _paused = ValueNotifier<bool>(false);
+  ValueListenable<bool> get paused => _pausedNotifier;
+  final _pausedNotifier = ValueNotifier<bool>(false);
 
-  bool get filterIsVisible => _filterIsVisible.value;
-  ValueListenable<bool> get onFilterVisibilityChanged => _filterIsVisible;
-  final _filterIsVisible = ValueNotifier<bool>(false);
+  // Цвет AppBar.
+  ValueListenable<Color> get appBarColor => _appBarColorNotifier;
+  final _appBarColorNotifier = ValueNotifier<Color>(_appBarColor);
+
+  // Флаг видимости фильтра.
+  ValueListenable<bool> get filterIsVisible => _filterIsVisibleNotifier;
+  final _filterIsVisibleNotifier = ValueNotifier<bool>(false);
 
   /// Логи.
   ///
@@ -146,7 +153,7 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   /// сумма текущих и новых логов: "1000".
   bool _newLogsMode = false;
 
-  bool get newLogsSeparately => paused || _newLogsMode;
+  bool get newLogsSeparately => paused.value || _newLogsMode;
 
   /// Удаляемые логи, добавленные во время паузы
   ///
@@ -181,7 +188,7 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _onLogsChanged.dispose();
-    _paused.dispose();
+    _pausedNotifier.dispose();
     filter.dispose();
     _onChangedSubscription.cancel();
     _animationController.dispose();
@@ -209,25 +216,27 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   }
 
   void toggleFilterVisibility() {
-    _filterIsVisible.value = !_filterIsVisible.value;
+    _filterIsVisibleNotifier.value = !_filterIsVisibleNotifier.value;
   }
 
   void pause() {
-    if (paused) return;
+    if (paused.value) return;
 
-    _paused.value = true;
+    _pausedNotifier.value = true;
+    _appBarColorNotifier.value = _appBarPausedColor;
     widget.onPaused?.call();
   }
 
   void resume() {
-    if (!paused) return;
+    if (!paused.value) return;
 
     _removedLogs
       ..forEach(filter.removeLog)
       ..clear();
     _onLogsChanged.update();
 
-    _paused.value = false;
+    _pausedNotifier.value = false;
+    _appBarColorNotifier.value = _appBarColor;
     widget.onResumed?.call();
     if (filter.logs.isNotEmpty) {
       itemScrollController.scrollTo(
@@ -243,7 +252,7 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   void clear() {
     widget.logStorage.clear();
     widget.onCleared?.call();
-    if (paused) {
+    if (paused.value) {
       resume();
     }
   }
@@ -254,7 +263,7 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
     switch (event) {
       case LogStorageRemove(:final log):
         if (!filter.removeNewLog(log)) {
-          if (paused) {
+          if (paused.value) {
             _removedLogs.add(log);
             filter.update();
           } else {
@@ -295,7 +304,7 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
   }
 
   void _startAddingAnimation() {
-    if (_animationController.isAnimating || paused) {
+    if (_animationController.isAnimating || paused.value) {
       return;
     }
 
@@ -326,33 +335,33 @@ class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
           filter: filter,
           child: Theme(
             data: _theme,
-            child: ValueListenableBuilder<bool>(
-              valueListenable: onPauseChanged,
-              builder: (context, paused, _) => Scaffold(
-                appBar: AppBar(
-                  backgroundColor: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.05),
-                  surfaceTintColor: Colors.transparent,
-                  title: const _LogsAppBarTitle(),
-                  actions: const [
-                    _FilterButton(),
-                    _ClearButton(),
-                  ],
-                ),
-                body: const SafeArea(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _FilterView(),
-                      Expanded(child: _LogsList()),
+            child: ValueListenableBuilder(
+              valueListenable: paused,
+              builder: (context, paused, _) => ValueListenableBuilder(
+                valueListenable: appBarColor,
+                builder: (context, appBarColor, _) => Scaffold(
+                  appBar: AppBar(
+                    backgroundColor: appBarColor,
+                    surfaceTintColor: Colors.transparent,
+                    title: const _LogsAppBarTitle(),
+                    actions: const [
+                      _FilterButton(),
+                      _ClearButton(),
                     ],
                   ),
+                  body: const SafeArea(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _FilterView(),
+                        Expanded(child: _LogsList()),
+                      ],
+                    ),
+                  ),
+                  floatingActionButton: paused //
+                      ? const _ResumeButton()
+                      : null,
                 ),
-                floatingActionButton: paused //
-                    ? const _ResumeButton()
-                    : null,
               ),
             ),
           ),
@@ -415,7 +424,7 @@ class _LogsAppBarTitle extends StatelessWidget {
     final filter = Logs.filterOf(context);
 
     return ValueListenableBuilder<bool>(
-      valueListenable: controller.onPauseChanged,
+      valueListenable: controller.paused,
       builder: (context, paused, _) => ListenableBuilder(
         listenable: controller.onLogsChanged,
         builder: (context, _) => Row(
@@ -432,7 +441,7 @@ class _LogsAppBarTitle extends StatelessWidget {
               ),
               if (filter.newLogs.isNotEmpty)
                 Text(
-                  ' +${filter.newLogs.length}',
+                  '+${filter.newLogs.length}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: _pauseColor,
@@ -448,7 +457,7 @@ class _LogsAppBarTitle extends StatelessWidget {
               ),
             if (controller.filter.isEnabled)
               Text(
-                ' / ${controller.widget.logStorage.count}',
+                ' of ${controller.widget.logStorage.count}',
                 style: const TextStyle(fontSize: 12),
               ),
           ],
@@ -469,10 +478,17 @@ class _FilterButton extends StatelessWidget {
     final controller = Logs.of(context);
     final filter = Logs.filterOf(context);
 
-    return IconButton(
-      onPressed: controller.toggleFilterVisibility,
-      icon: const Icon(Icons.filter_alt),
-      color: filter.isEnabled ? _filterColor : null,
+    return ValueListenableBuilder(
+      valueListenable: controller.filterIsVisible,
+      builder: (context, filterIsVisible, _) => IconButton(
+        onPressed: controller.toggleFilterVisibility,
+        icon: const Icon(Icons.filter_alt),
+        color: filter.isEnabled ? _filterColor : null,
+        style: IconButton.styleFrom(
+          backgroundColor:
+              filterIsVisible ? _filterColor.withValues(alpha: 0.1) : null,
+        ),
+      ),
     );
   }
 }
@@ -521,18 +537,17 @@ class _FilterViewState extends State<_FilterView>
     super.initState();
 
     _controller = Logs.of(context)
-      ..onFilterVisibilityChanged.addListener(_onFilterVisibilityChanged);
+      ..filterIsVisible.addListener(_onFilterVisibilityChanged);
   }
 
   @override
   void dispose() {
-    _controller.onFilterVisibilityChanged
-        .removeListener(_onFilterVisibilityChanged);
+    _controller.filterIsVisible.removeListener(_onFilterVisibilityChanged);
     super.dispose();
   }
 
   void _onFilterVisibilityChanged() {
-    if (_controller.filterIsVisible) {
+    if (_controller.filterIsVisible.value) {
       _animationController.forward();
     } else {
       _animationController.reverse();
@@ -540,15 +555,18 @@ class _FilterViewState extends State<_FilterView>
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
-        padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _FilterEdit(animation: _animation),
-            _FilterResult(showFilterAnimation: _animation),
-          ],
+  Widget build(BuildContext context) => ValueListenableBuilder(
+        valueListenable: _controller.appBarColor,
+        builder: (context, appBarColor, _) => Container(
+          color: appBarColor,
+          padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _FilterEdit(animation: _animation),
+              _FilterResult(showFilterAnimation: _animation),
+            ],
+          ),
         ),
       );
 }
@@ -847,17 +865,15 @@ class _FilterResultState extends State<_FilterResult>
           heightFactor: _animation.value,
           child: Material(
             clipBehavior: Clip.antiAlias,
-            color: _filterColor.withValues(alpha: 0.1),
             shape: RoundedRectangleBorder(
-              side: const BorderSide(color: _filterColor),
+              side: BorderSide(color: _filterColor.withValues(alpha: 0.5)),
               borderRadius: BorderRadius.circular(4),
             ),
             child: InkWell(
               onTap: controller.toggleFilterVisibility,
-              focusColor: _filterColor.withValues(alpha: 0.2),
-              highlightColor: _filterColor.withValues(alpha: 0.3),
-              splashColor: _filterColor.withValues(alpha: 0.4),
-              hoverColor: _filterColor.withValues(alpha: 0.1),
+              overlayColor: WidgetStatePropertyAll(
+                _filterColor.withValues(alpha: 0.05),
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -914,7 +930,7 @@ class _LogsList extends StatelessWidget {
       onNotification: (notification) {
         switch (notification) {
           case UserScrollNotification()
-              when !controller.paused &&
+              when !controller.paused.value &&
                   notification.direction == ScrollDirection.reverse:
             SchedulerBinding.instance.addPostFrameCallback((_) {
               controller.pause();
