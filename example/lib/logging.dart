@@ -6,7 +6,7 @@ final uiTheme = theme.copyWith(
   tagsStyle: ansi.gray8,
 );
 
-final logStorage = LogStorage(maxCount: 1000, reverse: true);
+final logStorage = LogStorage(maxCount: 1000);
 
 final log = Logger('app')
   ..publisher = MultiPublisher([

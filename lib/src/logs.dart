@@ -67,17 +67,17 @@ class Logs extends StatefulWidget {
   /// Callback при очистке.
   final void Function()? onCleared;
 
-  const Logs({
+  Logs({
     super.key,
     this.title = 'Logs',
     required this.theme,
-    required this.logStorage,
+    required LogStorage logStorage,
     this.scrollToBottomDuration = const Duration(milliseconds: 300),
     this.scrollToBottomCurve = Curves.ease,
     this.onPaused,
     this.onResumed,
     this.onCleared,
-  });
+  }) : logStorage = logStorage.reversed;
 
   @override
   State<Logs> createState() => LogsState();
