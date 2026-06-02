@@ -22,7 +22,6 @@ final log = Logger('app')
     //         LogPath(),
     //         LogTraceId(),
     //         LogMessage(
-    //           showStackTrace: true,
     //           controlledPackages: {
     //             'team_logger',
     //             'flutter_team_logger',
