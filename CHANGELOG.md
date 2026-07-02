@@ -1,3 +1,7 @@
+## 0.3.0
+
+- Update team_logger dependency to 0.3.0.
+
 ## 0.2.0
 
 - Publish.
