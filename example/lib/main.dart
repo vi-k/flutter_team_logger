@@ -99,7 +99,7 @@ void f() {
               'HEADERS': Data.postHeaders,
               'BODY': Data.postBody,
             },
-            config: const LoggableConfig(collectionMaxLength: 2),
+            config: const LoggableConfig(collectionMaxCount: 2),
           ),
           tags: ['post'],
         );
@@ -108,7 +108,7 @@ void f() {
           traceId: httpTraceId,
           data: Loggable.from(
             Data.succesResponse,
-            config: const LoggableConfig(collectionMaxLength: 2),
+            config: const LoggableConfig(collectionMaxCount: 2),
           ),
           tags: ['response'],
         );
@@ -129,21 +129,21 @@ void f() {
     'json',
     data: Loggable.from(
       Data.json,
-      config: const LoggableConfig(collectionMaxLength: 2),
+      config: const LoggableConfig(collectionMaxCount: 2),
     ),
   );
   log.d(
     '',
     data: LoggableMultiData(
       {'JSON': Data.json},
-      config: const LoggableConfig(collectionMaxLength: 2),
+      config: const LoggableConfig(collectionMaxCount: 2),
     ),
   );
   log.d(
     '',
     data: Loggable.from(
       Data.json,
-      config: const LoggableConfig(collectionMaxLength: 2),
+      config: const LoggableConfig(collectionMaxCount: 2),
     ),
   );
 
@@ -152,7 +152,7 @@ void f() {
       '',
       data: Loggable.from(
         Data.listOfLists,
-        config: const LoggableConfig(collectionMaxLength: 2),
+        config: const LoggableConfig(collectionMaxCount: 2),
       ),
     );
   }
@@ -211,7 +211,7 @@ void f() {
     'wrapped list',
     data: Loggable.from(
       [1, 2, 3],
-      config: const LoggableConfig(collectionMaxLength: 2),
+      config: const LoggableConfig(collectionMaxCount: 2),
     ),
   );
 
@@ -237,7 +237,7 @@ void f() {
     'storage snapshot',
     data: Loggable.from(
       logStorage.snapshot(),
-      config: const LoggableConfig(collectionMaxLength: 3),
+      config: const LoggableConfig(collectionMaxCount: 3),
     ),
   );
 

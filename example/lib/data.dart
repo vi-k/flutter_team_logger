@@ -198,8 +198,8 @@ final class LoggableObject with Loggable {
       'duration',
       duration,
       view: LoggableMultiView([
-        LoggableView(duration.inMinutes, 'min'),
-        LoggableView(duration.inSeconds, 'sec'),
+        LoggableView(duration.inMinutes, units: 'min'),
+        LoggableView(duration.inSeconds, units: 'sec'),
       ]),
     )
     ..prop('bearing', bearing, units: '°')
@@ -208,12 +208,12 @@ final class LoggableObject with Loggable {
       speed,
       units: 'm/s',
       view: LoggableMultiView([
-        LoggableView(speed, 'm/s'),
-        LoggableView(speed * 3.6, 'km/h'),
+        LoggableView(speed, units: 'm/s'),
+        LoggableView(speed * 3.6, units: 'km/h'),
       ]),
     )
     ..prop('distance', distance, units: 'm')
-    ..prop('points', points, collectionMaxLength: 2)
+    ..prop('points', points, collectionMaxCount: 2)
     ..prop('destinations', destinations);
 }
 
@@ -244,14 +244,7 @@ final class NotLoggableObject {
 final class NotLoggableObjectConverter
     implements LoggableTypeConverter<NotLoggableObject> {
   @override
-  String call(
-    NotLoggableObject obj,
-    LogTheme theme,
-    int depth,
-    LoggableResolvedConfig config,
-  ) =>
-      (Loggable.builder(obj)
-            ..prop('name', obj.name)
-            ..prop('list', obj.list))
-          .toLogString(theme: theme, depth: depth, config: config);
+  LoggableData convertToData(NotLoggableObject obj) => Loggable.builder(obj)
+    ..prop('name', obj.name)
+    ..prop('list', obj.list);
 }
