@@ -226,8 +226,8 @@ class _LogItemState extends State<LogItem> {
                       ),
                       const Spacer(),
                       _BorderContainer(
-                        text: log.sequenceNum.toString(),
-                        style: theme.data.sequenceNumStyle,
+                        text: log.num.toString(),
+                        style: theme.data.numStyle,
                         defaultStyle: theme.data.normal,
                         borderColor: _borderColor,
                         borderLeftRounded: true,
