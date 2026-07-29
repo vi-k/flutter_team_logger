@@ -1,3 +1,7 @@
+## 0.5.0
+
+- Update team_logger dependency to 0.5.1.
+
 ## 0.4.0
 
 - Update team_logger dependency to 0.4.1.

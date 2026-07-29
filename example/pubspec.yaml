@@ -13,7 +13,7 @@ dependencies:
   flutter_team_logger:
     path: ../
   stack_trace: ^1.12.1
-  team_logger: ^0.4.1
+  team_logger: ^0.5.1
   window_manager: ^0.5.1
 
 dev_dependencies:
