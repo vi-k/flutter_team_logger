@@ -85,7 +85,13 @@ class _LogItemState extends State<LogItem> {
             maxLines: 3,
             overflow: TextOverflow.fade,
             text: ansiText2TextSpan(
-              theme.formatMessage(theme.formatValue(log.message)),
+              theme.formatMessage(
+                theme.formatValue(
+                  log.message,
+                  escapeAnsiCodes: LoggableConfig.defaultEscapeAnsiCodes,
+                ),
+                escapeAnsiCodes: false,
+              ),
               defaulStyle: theme.data.normal,
               fontSize: _messageFontSize,
             ),
@@ -140,7 +146,13 @@ class _LogItemState extends State<LogItem> {
       text: ansiText2TextSpan(
         '${theme.data.sectionStyle(theme.main.errorTitle)}'
         '${theme.styledColon}'
-        ' ${theme.formatMessage(theme.formatValue('$error'))}',
+        ' ${theme.formatMessage(
+          theme.formatValue(
+            '$error',
+            escapeAnsiCodes: LoggableConfig.defaultEscapeAnsiCodes,
+          ),
+          escapeAnsiCodes: false,
+        )}',
         defaulStyle: theme.data.normal,
         fontSize: _dataFontSize,
       ),

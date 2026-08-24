@@ -9,7 +9,7 @@ TextSpan ansiText2TextSpan(
   final parser = ansi.Parser(text);
   final spans = <TextSpan>[];
 
-  for (final m in parser.matches) {
+  for (final m in parser.pieces) {
     final entity = m.entity;
     if (entity is ansi.Text) {
       final style = m.state.toStyle();
