@@ -48,6 +48,23 @@
 реестр `registerTypeConverter` приватен; `SanitizeContext` имеет только
 приватный конструктор; `Loggable._withSegment`/`_sanitizeChild` приватны.
 
+### Ловушки API, проверенные на 0.7.0
+
+- **Все геттеры `LoggableConfig.resolved*` помечены `@internal`** —
+  обращение к ним из нашего пакета даёт `invalid_use_of_internal_member`, а
+  чистый `dart analyze` обязателен. Публичная замена — `toEffectiveConfig()`
+  (`LoggableEffectiveConfig` экспортируется), то есть
+  `config.toEffectiveConfig().units` вместо `config.resolvedUnits`.
+  `withoutUnits()` тоже `@internal`. `Loggable.unitsToString`,
+  `LogTheme.depthTheme`, `LoggableData.props`, `Prop.toLogString`,
+  `Loggable.objectToString` — чистые.
+- **`LoggableData.name` пользоваться нельзя.** Геттер возвращает
+  `_type.name`, а это `Prop.name` конструктора `TypeProp`, то есть всегда
+  строка `'type'`; сеттер при этом пишет в `typeName`. Сам team_logger в
+  `toLogString` берёт имя как `_type.typeName ?? _type.value.toString()` —
+  публично это `data.type.typeName ?? data.type.value.toString()`. Похоже
+  на дефект в team_logger, но нас он не блокирует.
+
 ## Принятые решения
 
 Развилки и выбор владельца:
@@ -73,6 +90,10 @@
    `docs/backlog.md`.
 7. **Устройство — модель узлов плюс плоский виртуализированный список.**
    Раскрытая коллекция на десятки тысяч элементов должна работать.
+8. **Модель узлов покрывается тестами**, виджеты — нет. Принято после
+   согласования спеки: `log_node.dart` — чистая логика без Flutter, а
+   `flutter_test` уже лежит в `dev_dependencies`. Меняет конвенцию проекта
+   «тестов нет» — `docs/conventions.md` правится в той же работе.
 
 ## Публичный API
 
@@ -152,8 +173,14 @@ const-инстанс. Тогда все `computed` просто перестан
 | `LoggableData` | `.props` → узлы `prop` |
 | `LoggableMultiData` | `.data.entries` → узлы `section` |
 | `Map` | записи → узлы `entry` (ключ может быть объектом) |
-| `Iterable` | элементы → узлы `index` |
+| `List`, `Set` | элементы → узлы `index` |
 | прочее | лист |
+
+Раскрываются только `List` и `Set`, а не любой `Iterable`: ленивый
+`Iterable` (результат `where`/`map`, генератор) может быть бесконечным, а
+перечислить его для дерева — значит его материализовать. Такие значения
+остаются листьями и печатаются текстом, где team_logger сам применяет
+`collectionMaxCount` и `iterableEfficientLength`.
 
 Дети строятся лениво, по факту раскрытия узла.
 
@@ -284,6 +311,7 @@ switch (real ? Prop.noView : view) {
 - `lib/src/details/log_node_tile.dart` — виджет одной строки дерева
   (отступ по глубине, стрелка раскрытия, имя, значение, бейджи).
 - `lib/src/uikit/border_container.dart` — переехавший `_BorderContainer`.
+- `test/log_node_test.dart` — тесты модели узлов.
 
 Правки:
 
@@ -296,17 +324,24 @@ switch (real ? Prop.noView : view) {
   `hidden` и ни одного `computed`, то есть тумблер не на чем показать.
 - `README.md` и `README.ru.md` — раздел про окно деталей и явное
   предупреждение про режим «реальные данные» и `sanitizer`.
-- `CHANGELOG.md`, `docs/architecture.md`, `docs/handoff.md`.
+- `CHANGELOG.md`, `docs/architecture.md`, `docs/handoff.md`,
+  `docs/conventions.md` (в проекте появились тесты).
 - `docs/backlog.md` — удалить выполненный пункт, добавить копирование в
   буфер (владелец пишет туда сам; агент удаляет выполненное).
 
 ## Проверка
 
-Тестов в репозитории нет, линия защиты прежняя (`docs/conventions.md`):
-`dart analyze` в корне и в `example/` до `No issues found!`. Плюс ручная
-проверка в `example/`: раскрытие вложенных объектов, коллекций и `Map`,
-переключение тумблера на данных с `view`, `hidden` и `computed`, лог без
-данных, лог с ошибкой и стеком.
+`dart analyze` в корне и в `example/` до `No issues found!` — обязательное
+условие перед коммитом (`docs/conventions.md`).
+
+Плюс `test/log_node_test.dart` (решение 8) — на модель узлов: разбор
+`Loggable` / `LoggableData` / `LoggableMultiData` / `Map` / `List` / `Set` /
+`LoggableWrapper`, зонд `computed`, оба режима, рендер значения с `view` и
+без. Запуск: `flutter test`. Виджеты тестами не покрываются.
+
+Плюс ручная проверка в `example/`: раскрытие вложенных объектов, коллекций
+и `Map`, переключение тумблера на данных с `view`, `hidden` и `computed`,
+лог без данных, лог с ошибкой и стеком.
 
 ## Версия и публикация
 
