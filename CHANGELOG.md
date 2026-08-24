@@ -1,3 +1,13 @@
+## 0.7.1
+
+- Add `LogDetails`, a screen with everything one log holds, opened by tapping
+  a log in `Logs`: the head, the message, the error and the stack trace in
+  full, and an expandable tree of the log's `data`.
+- The details screen has two modes: as logged, and real data — the values
+  behind `view` substitutes plus the properties marked `hidden`. Real data
+  does not apply `Loggable.sanitizer`; see the README.
+- Cover the tree model with tests.
+
 ## 0.7.0
 
 - Update team_logger dependency to 0.7.0.

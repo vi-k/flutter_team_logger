@@ -222,6 +222,16 @@ void f() {
   log.d('NotLoggableObject', data: notLoggableObject);
 
   log.d(
+    'payment',
+    data: const Payment(
+      pan: '4111111111111234',
+      amount: 12345,
+      accuracy: 12.5,
+      address: Address(city: 'Berlin', zip: '10115'),
+    ),
+  );
+
+  log.d(
     'map',
     data: {'a': 1, 'b': 2, 'c': 3},
   );

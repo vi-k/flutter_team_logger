@@ -42,20 +42,14 @@ class LogDetails extends StatefulWidget {
 }
 
 class _LogDetailsState extends State<LogDetails> {
+  /// Paths of the nodes the user has opened.
+  ///
+  /// Starts empty, and that already shows the first level: the root itself is
+  /// never drawn as a row, its children are. Everything deeper is one tap
+  /// away.
   final _expanded = <String>{};
+
   bool _real = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // The first level is open from the start: everything below it is one tap
-    // away, and a fully collapsed tree would show no more than the log item
-    // in the list already does.
-    for (final node in LogNode.root(widget.log.data).children(real: _real)) {
-      if (node.expandable(real: _real)) _expanded.add(node.path);
-    }
-  }
 
   List<LogNode> _flatten() {
     final rows = <LogNode>[];

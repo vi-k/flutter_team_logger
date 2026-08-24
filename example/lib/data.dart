@@ -248,3 +248,40 @@ final class NotLoggableObjectConverter
     ..prop('name', obj.name)
     ..prop('list', obj.list);
 }
+
+/// Shows what the details screen can reveal: a value masked by a view, a
+/// property kept out of the log entirely, and one computed from the others.
+final class Payment with Loggable {
+  final String pan;
+  final int amount;
+  final double accuracy;
+  final Address address;
+
+  const Payment({
+    required this.pan,
+    required this.amount,
+    required this.accuracy,
+    required this.address,
+  });
+
+  @override
+  void collectLoggableData(LoggableData data) => data
+    ..prop('pan', pan, view: '**** ${pan.substring(pan.length - 4)}')
+    ..prop('amount', amount, units: 'cents')
+    ..prop('address', address)
+    ..hidden('accuracy', accuracy)
+    ..computed('total', '${amount / 100} USD');
+}
+
+/// A nested object, so the tree has something to expand into.
+final class Address with Loggable {
+  final String city;
+  final String zip;
+
+  const Address({required this.city, required this.zip});
+
+  @override
+  void collectLoggableData(LoggableData data) => data
+    ..prop('city', city)
+    ..prop('zip', zip);
+}

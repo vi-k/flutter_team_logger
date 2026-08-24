@@ -8,12 +8,14 @@ Flutter-виджеты для отображения логов из [team_logge
 
 ## Публичный API
 
-`lib/flutter_team_logger.dart` экспортирует только два виджета:
+`lib/flutter_team_logger.dart` экспортирует три виджета:
 
 - `Logs` (`lib/src/logs.dart`) — экран списка логов целиком (AppBar,
   фильтр, список, пауза/возобновление).
 - `LogItem` (`lib/src/log_item.dart`) — виджет одного лога, можно
   использовать отдельно от `Logs`.
+- `LogDetails` (`lib/src/details/log_details.dart`) — экран одного лога
+  целиком с деревом данных, открывается по тапу из `Logs`.
 
 Всё остальное в `lib/src/` — приватная реализация.
 
@@ -46,6 +48,37 @@ UI должен успеть показать их удаление.
 (через `LogStackTrace` из `team_logger`), теги. Цвета и стили берутся из
 `LogTheme` (тема `team_logger`, описанная в ANSI-стилях) и конвертируются во
 Flutter через `ansi_utils.dart`.
+
+## details/ — экран одного лога
+
+`LogDetails` показывает лог целиком: шапку, сообщение, дерево `data`, ошибку
+и стек — всё без ограничений по высоте, в отличие от `LogItem`.
+
+- `log_node.dart` — `LogNode`: модель узла дерева. Рекурсивно разбирает
+  значение (`Loggable` → `logClassInfo().props`, `LoggableData` → `props`,
+  `LoggableMultiData` → секции, `Map` → записи, `List`/`Set` → элементы,
+  `LoggableWrapper` — прозрачен) и рендерит имя и значение узла в
+  ANSI-текст теми же вызовами `team_logger`, что и консоль. Ветвление
+  `valueText` повторяет `Prop.toLogString`.
+- `log_node_tile.dart` — `LogNodeTile`: одна строка дерева (отступ по
+  глубине, стрелка, имя, значение, бейджи `hidden`/`computed`).
+- `log_details.dart` — экран: AppBar с тумблером режима, шапка (`_Head`),
+  плоский список узлов, ошибка и стек (`_Tail`).
+
+Два режима. «As logged» — то же, что печатает консоль: применяется `view`,
+`hidden` не показываются. «Real data» — значения под `view`, показанные
+`hidden` и **без** `Loggable.sanitizer`: экран читает объекты из памяти, как
+инспектор отладчика. Это осознанное решение, а не упущение —
+`docs/records/2026-08-24[5]-log-details-design.md`.
+
+Раскрытые узлы уплощаются в один `ListView.builder`, состояние раскрытия —
+набор путей в состоянии экрана, поэтому переключение режима его не теряет.
+Свёрнутый узел показывает консольную сводку целиком (`_Address(city:
+"Berlin")`), раскрытый — имя класса и детей отдельными строками.
+
+Признак `computed` в публичном API `team_logger` отсутствует, поэтому
+`log_node.dart` ловит общий const-инстанс зондом
+(`Loggable.mapBuilder()..computed(...)`) и сравнивает через `identical`.
 
 ## Filter (`lib/src/filter/`)
 
@@ -86,10 +119,13 @@ Flutter через `ansi_utils.dart`.
 `Color`). `team_logger` сам ничего не знает о Flutter — вся конвертация
 цветов и парсинг ANSI-текста (`ansi.Parser`) для `RichText` живёт здесь.
 
-## uikit/chip.dart
+## uikit/
 
-`Chip`/`FilterChip` — обычные presentational-виджеты для чипов фильтра,
-ничего специфичного для логов в них нет.
+- `chip.dart` — `Chip`/`FilterChip`, обычные presentational-виджеты для
+  чипов фильтра, ничего специфичного для логов в них нет.
+- `border_container.dart` — `BorderContainer`, бордюрная плашка (уровень,
+  время, путь, номер, теги, бейджи дерева). Общая для `LogItem` и
+  `LogDetails`, поэтому живёт здесь, а не внутри `log_item.dart`.
 
 ## Внешние зависимости
 
