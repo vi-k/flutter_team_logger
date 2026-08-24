@@ -36,5 +36,7 @@
 ## Проверка
 
 - `dart analyze` (корень и `example/`) — чисто.
-- `flutter test` — 13 тестов модели дерева, зелёные.
+- `flutter test` — 15 тестов, зелёные: 13 на модель дерева
+  (`test/log_node_test.dart`) и 2 smoke-теста экрана
+  (`test/log_details_test.dart`).
 - `example` собирается под macOS.
