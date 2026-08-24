@@ -10,6 +10,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:team_logger/team_logger.dart';
 
 import 'ansi_utils.dart';
+import 'details/log_details.dart';
 import 'filter/filter.dart';
 import 'log_item.dart';
 import 'notifier.dart';
@@ -963,6 +964,14 @@ class _LogsList extends StatelessWidget {
                     controller.widget.theme[log.level],
                     removed: controller.isLogRemoved(log),
                     onTapDown: controller.pause,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => LogDetails(
+                          log,
+                          controller.widget.theme[log.level],
+                        ),
+                      ),
+                    ),
                   ),
                 );
 
