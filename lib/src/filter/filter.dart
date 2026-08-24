@@ -87,9 +87,9 @@ final class Filter extends StreamNotifier {
     notifyListeners();
   }
 
-  /// Добавляет новый лог в список ожидания.
+  /// Adds a new log to the pending list.
   ///
-  /// Возвращает true, если отображаемые логи обновились.
+  /// Returns true if the displayed logs were updated.
   bool addNewLog(Log log) {
     _getAllNewLogs().add(log);
     if (!isEnabled) return true;
@@ -132,8 +132,7 @@ final class Filter extends StreamNotifier {
     }
 
     if (isEnabled) {
-      // Если в списке отфильтрованных новых логов нет ни одного, то перемещаем
-      // все новые логи.
+      // If there are no filtered new logs at all, move all new logs over.
       if (_filteredNewLogs.isEmpty) {
         allLogs.insertAll(0, allNewLogs);
         allNewLogs.clear();
@@ -144,30 +143,31 @@ final class Filter extends StreamNotifier {
       final extraLogsCount = _filteredNewLogs.length - maxNewLogs;
       Log lastNewLog;
       if (extraLogsCount > 0) {
-        // Перемещаем пачкой.
+        // Move as a batch.
         final extraLogs = _filteredNewLogs.take(extraLogsCount).toList();
         _filteredLogs.insertAll(0, extraLogs);
         _filteredNewLogs.removeRange(0, extraLogsCount);
         lastNewLog = extraLogs.last;
       } else {
-        // Перемещаем по одному.
+        // Move one at a time.
         final log = _filteredNewLogs.removeAt(0);
         _filteredLogs.insert(0, log);
         lastNewLog = log;
       }
-      // Из общих списков перемещаем все логи, которые были до перемещенного.
+      // From the shared lists, move over every log that came before the one
+      // just moved.
       final index = allNewLogs.indexOf(lastNewLog);
       allLogs.insertAll(0, allNewLogs.take(index + 1));
       allNewLogs.removeRange(0, index + 1);
     } else {
       final extraLogsCount = allNewLogs.length - maxNewLogs;
       if (extraLogsCount > 0) {
-        // Перемещаем пачкой.
+        // Move as a batch.
         final extraLogs = allNewLogs.take(extraLogsCount);
         allLogs.insertAll(0, extraLogs);
         allNewLogs.removeRange(0, extraLogsCount);
       } else {
-        // Перемещаем по одному.
+        // Move one at a time.
         final log = allNewLogs.removeAt(0);
         allLogs.insert(0, log);
       }
@@ -310,14 +310,14 @@ final class Filter extends StreamNotifier {
   Map<T, (int, int)> _calcAvailableValues<T>(T Function(Log log) value) {
     final result = SplayTreeMap<T, (int, int)>();
 
-    // Все доступные значения.
+    // All available values.
     for (final log in _getAllLogs()) {
       final v = value(log);
       final (filtered, total) = result[v] ?? (0, 0);
       result[v] = (filtered, total + 1);
     }
 
-    // Кол-во в видимых логах.
+    // Count among the visible logs.
     for (final log in logs) {
       final v = value(log);
       final (filtered, total) = result[v] ?? (0, 0);
@@ -333,7 +333,7 @@ final class Filter extends StreamNotifier {
   ]) {
     final result = SplayTreeMap<T, (int, int)>(compare);
 
-    // Все доступные значения.
+    // All available values.
     for (final log in _getAllLogs()) {
       for (final v in list(log)) {
         final (filtered, total) = result[v] ?? (0, 0);
@@ -341,7 +341,7 @@ final class Filter extends StreamNotifier {
       }
     }
 
-    // Кол-во в видимых логах.
+    // Count among the visible logs.
     for (final log in logs) {
       for (final v in list(log)) {
         final (filtered, total) = result[v] ?? (0, 0);

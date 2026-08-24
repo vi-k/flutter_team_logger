@@ -39,32 +39,32 @@ const EdgeInsetsGeometry _filterPadding =
     EdgeInsets.symmetric(horizontal: _listHorizontalPadding, vertical: 4);
 
 class Logs extends StatefulWidget {
-  /// Заголовок экрана.
+  /// Screen title.
   final String title;
 
-  /// Тема для отрисовки логов из `team_builder`.
+  /// Theme for rendering logs from `team_logger`.
   final LogMainTheme theme;
 
-  /// Хранилище логов из `team_builder`.
+  /// Log storage from `team_logger`.
   final LogStorage logStorage;
 
-  /// Длительность скроллинга при появлении нового лога.
+  /// Duration of the scroll animation when a new log appears.
   ///
-  /// В реальности при появлении сразу нескольких логов длительность
-  /// экспоненциально уменьшается. При уменьшении очереди накопленных логов
-  /// длительность увеличивается до [scrollToBottomDuration]..
+  /// In practice, when several logs appear at once, the duration decreases
+  /// exponentially. As the queue of accumulated logs shrinks, the duration
+  /// increases back up to [scrollToBottomDuration].
   final Duration scrollToBottomDuration;
 
-  /// Кривая анимации скроллинга.
+  /// Curve of the scroll animation.
   final Curve scrollToBottomCurve;
 
-  /// Callback при паузе.
+  /// Callback fired on pause.
   final void Function()? onPaused;
 
-  /// Callback при возобновлении.
+  /// Callback fired on resume.
   final void Function()? onResumed;
 
-  /// Callback при очистке.
+  /// Callback fired on clear.
   final void Function()? onCleared;
 
   Logs({
@@ -93,77 +93,77 @@ class Logs extends StatefulWidget {
 }
 
 class LogsState extends State<Logs> with SingleTickerProviderStateMixin {
-  /// Анимация скроллинга в [ScrollablePositionedList].
+  /// Scroll animation in [ScrollablePositionedList].
   ///
-  /// В реальности нет никакого скроллинга логов. Анимация скроллинга
-  /// осуществляется через изменение размера очередного лога.
+  /// In practice there is no actual scrolling of logs. The scroll animation
+  /// is achieved by resizing the incoming log item.
   late final _animationController = AnimationController(
     vsync: this,
     duration: widget.scrollToBottomDuration,
   );
 
-  /// Добавляем кривую к анимации скроллинга.
+  /// Attaches a curve to the scroll animation.
   late final animation =
       _animationController.drive(CurveTween(curve: widget.scrollToBottomCurve));
 
-  /// Контроллер для управления скроллингом в [ScrollablePositionedList].
+  /// Controller for managing scrolling in [ScrollablePositionedList].
   final itemScrollController = ItemScrollController();
 
-  /// Нотификатор для оповещения об обновлении логов.
+  /// Notifier for log update notifications.
   Listenable get onLogsChanged => _onLogsChanged;
   final _onLogsChanged = Notifier();
 
-  /// Флаг паузы.
+  /// Pause flag.
   ValueListenable<bool> get paused => _pausedNotifier;
   final _pausedNotifier = ValueNotifier<bool>(false);
 
-  // Цвет AppBar.
+  // AppBar color.
   ValueListenable<Color> get appBarColor => _appBarColorNotifier;
   final _appBarColorNotifier = ValueNotifier<Color>(_appBarColor);
 
-  // Флаг видимости фильтра.
+  // Filter visibility flag.
   ValueListenable<bool> get filterIsVisible => _filterIsVisibleNotifier;
   final _filterIsVisibleNotifier = ValueNotifier<bool>(false);
 
-  /// Логи.
+  /// Logs.
   ///
-  /// Храним свой собственный список логов, так как логи в [LogStorage] могут
-  /// быть удалены.
+  /// We keep our own list of logs, because logs in [LogStorage] can be
+  /// removed.
   ///
-  /// Следим за изменениями в [LogStorage] через [LogStorage.onChanged]. На
-  /// время паузы не изменяем список: новые логи накапливаем в [_newLogs],
-  /// удаляемые - в [_removedLogs].
+  /// We track changes in [LogStorage] via [LogStorage.onChanged]. While
+  /// paused, the list is left unchanged: new logs accumulate in [_newLogs],
+  /// removed ones in [_removedLogs].
   final _logs = <Log>[];
 
-  /// Новые логи.
+  /// New logs.
   ///
-  /// Все новые логи накапливаются в этом списке и постепенно изымаются из
-  /// него в [_startAddingAnimation]. Во время паузы не изымаются, только
-  /// накапливаются.
+  /// All new logs accumulate in this list and are gradually drained from
+  /// it in [_startAddingAnimation]. While paused, they are not drained,
+  /// only accumulated.
   final _newLogs = <Log>[];
 
-  /// Режим новых логов.
+  /// New-logs mode.
   ///
-  /// При одновременном появлении большого количества логов в AppBar
-  /// показывается индикатор кол-ва новых логов в виде "987 +13", чтобы
-  /// пользователь видел, что логи пришли, но ещё не появились.
+  /// When a large number of logs arrive at once, the AppBar shows a count
+  /// of new logs like "987 +13", so the user can see that logs have
+  /// arrived even though they have not appeared yet.
   ///
-  /// В обычном случае, когда логи появляются по одному или небольшим
-  /// количеством, этот режим не включается, и в AppBar показывается сразу
-  /// сумма текущих и новых логов: "1000".
+  /// Normally, when logs appear one at a time or in small numbers, this
+  /// mode does not switch on, and the AppBar shows the combined total of
+  /// current and new logs right away: "1000".
   bool _newLogsMode = false;
 
   bool get newLogsSeparately => paused.value || _newLogsMode;
 
-  /// Удаляемые логи, добавленные во время паузы
+  /// Logs pending removal, added while paused.
   ///
-  /// Удаляем при возобновлении в [resume].
+  /// Removed on resume in [resume].
   var _removedLogs = <Log>[];
 
-  /// Подписка на изменение логов в [LogStorage].
+  /// Subscription to log changes in [LogStorage].
   late StreamSubscription<void> _onChangedSubscription;
 
-  /// Фильтр логов.
+  /// Log filter.
   late final filter = Filter(
     logs: () => _logs,
     newLogs: () => _newLogs,
