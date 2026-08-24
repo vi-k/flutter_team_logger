@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:team_logger/team_logger.dart';
 
 import 'ansi_utils.dart';
-
-const _borderColorAlpha = 0.4;
+import 'uikit/border_container.dart';
 
 class LogItem extends StatefulWidget {
   static const _row = LogRow(children: [], maxLength: 10000);
@@ -58,7 +57,7 @@ class _LogItemState extends State<LogItem> {
     super.initState();
 
     _color = ansiColor2Color(widget.theme.data.normal.foregroundColor)!;
-    _messageBorderColor = _color.withValues(alpha: _borderColorAlpha);
+    _messageBorderColor = _color.withValues(alpha: borderColorAlpha);
     _messageBackgroundColor = _color.withValues(alpha: 0.1);
 
     _message = _buildMessage();
@@ -72,7 +71,7 @@ class _LogItemState extends State<LogItem> {
     super.didChangeDependencies();
 
     final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
-    _borderColor = Color.lerp(backgroundColor, _color, _borderColorAlpha)!;
+    _borderColor = Color.lerp(backgroundColor, _color, borderColorAlpha)!;
   }
 
   Widget? _buildMessage() {
@@ -211,7 +210,7 @@ class _LogItemState extends State<LogItem> {
                   // top row
                   Row(
                     children: [
-                      _BorderContainer(
+                      BorderContainer(
                         text: log.levelName,
                         style: theme.data.levelNameStyle,
                         defaultStyle: theme.data.normal,
@@ -219,7 +218,7 @@ class _LogItemState extends State<LogItem> {
                         borderRightRounded: true,
                       ),
                       const SizedBox(width: _itemsSeparator),
-                      _BorderContainer(
+                      BorderContainer(
                         text: LogTime.timeToString(log.time),
                         style: theme.data.timeStyle,
                         defaultStyle: theme.data.normal,
@@ -228,7 +227,7 @@ class _LogItemState extends State<LogItem> {
                         borderRightRounded: true,
                       ),
                       const SizedBox(width: _itemsSeparator),
-                      _BorderContainer(
+                      BorderContainer(
                         text: log.path,
                         style: theme.data.pathStyle,
                         defaultStyle: theme.data.normal,
@@ -237,7 +236,7 @@ class _LogItemState extends State<LogItem> {
                         borderRightRounded: true,
                       ),
                       const Spacer(),
-                      _BorderContainer(
+                      BorderContainer(
                         text: log.num.toString(),
                         style: theme.data.numStyle,
                         defaultStyle: theme.data.normal,
@@ -259,7 +258,7 @@ class _LogItemState extends State<LogItem> {
                         runSpacing: _itemsSeparator,
                         children: [
                           for (final traceId in log.traceIds)
-                            _BorderContainer(
+                            BorderContainer(
                               text: traceId.toString(),
                               style: theme.main.traceIdStyle,
                               defaultStyle: theme.data.normal,
@@ -317,7 +316,7 @@ class _LogItemState extends State<LogItem> {
                     spacing: _itemsSeparator,
                     children: [
                       if (widget.removed)
-                        _BorderContainer(
+                        BorderContainer(
                           text: 'REMOVED',
                           style: ansi.Style(
                             background:
@@ -330,7 +329,7 @@ class _LogItemState extends State<LogItem> {
                         ),
                       const Spacer(),
                       for (final (index, tag) in log.tags.indexed)
-                        _BorderContainer(
+                        BorderContainer(
                           text: '#$tag',
                           style: theme.main.tagsStyle,
                           defaultStyle: theme.data.normal,
@@ -345,68 +344,6 @@ class _LogItemState extends State<LogItem> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _BorderContainer extends StatelessWidget {
-  static const EdgeInsetsGeometry _padding =
-      EdgeInsets.only(left: 3, right: 3, top: 1, bottom: 1);
-  static const double _borderRadius = 4;
-  static const double _fontSize = 11;
-
-  final String text;
-  final ansi.Style style;
-  final Color? borderColor;
-  final bool topLeftRounded;
-  final bool topRightRounded;
-  final bool borderLeftRounded;
-  final bool borderRightRounded;
-
-  const _BorderContainer({
-    // ignore: unused_element_parameter
-    super.key,
-    required ansi.Style style,
-    required ansi.Style defaultStyle,
-    this.borderColor,
-    this.topLeftRounded = false,
-    this.topRightRounded = false,
-    this.borderLeftRounded = false,
-    this.borderRightRounded = false,
-    required this.text,
-  }) : style = style is ansi.NoStyle ? defaultStyle : style;
-
-  @override
-  Widget build(BuildContext context) {
-    Colors.red.computeLuminance();
-    final textStyle = ansiStyle2TextStyle(style, fontSize: _fontSize);
-    final borderColor = this.borderColor ??
-        ansiColor2Color(style.foregroundColor)?.withValues(
-          alpha: _borderColorAlpha,
-        ) ??
-        Colors.red;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: textStyle.backgroundColor,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.only(
-          topLeft: topLeftRounded //
-              ? const Radius.circular(_borderRadius)
-              : Radius.zero,
-          topRight: topRightRounded //
-              ? const Radius.circular(_borderRadius)
-              : Radius.zero,
-          bottomLeft: borderLeftRounded //
-              ? const Radius.circular(_borderRadius)
-              : Radius.zero,
-          bottomRight: borderRightRounded //
-              ? const Radius.circular(_borderRadius)
-              : Radius.zero,
-        ),
-      ),
-      padding: _padding,
-      child: Text(text, style: textStyle),
     );
   }
 }
