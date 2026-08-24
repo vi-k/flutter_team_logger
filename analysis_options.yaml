@@ -8,6 +8,11 @@ analyzer:
     - build/**
     # Assets
     - assets/**
+    - android/**
+    - ios/**
+    - windows/**
+    - macos/**
+    - linux/**
 
   language:
     strict-casts: true
