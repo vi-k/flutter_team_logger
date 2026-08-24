@@ -86,7 +86,14 @@
   Похоже на дефект. Имя класса приходится брать как
   `data.type.typeName ?? data.type.value.toString()` — так его берёт и сам
   `team_logger` внутри `toLogString`.
-- В рабочем дереве обнаружена не принадлежащая этой работе правка
-  `analysis_options.yaml` (добавлены `android/ios/windows/macos/linux` в
-  `analyzer.exclude`). По `AGENTS.md` чужие правки не коммитятся вместе со
-  своими — файл не тронут и не закоммичен.
+- В рабочем дереве по ходу работы появились не принадлежащие ей правки
+  `analysis_options.yaml` и `example/analysis_options.yaml` (в обоих
+  добавлены `android/ios/windows/macos/linux` в `analyzer.exclude`). В
+  начале сессии дерево было чистым, сборкой такое не порождается — похоже на
+  параллельную сессию владельца. По `AGENTS.md` чужие правки не коммитятся
+  вместе со своими: файлы не тронуты и оставлены незакоммиченными.
+- `flutter build macos --debug` при проверке мигрировал обвязку
+  `example/macos/` (`Podfile`, `Podfile.lock`, `project.pbxproj`,
+  `Runner.xcscheme`; в частности `platform :osx` с 10.14 на 12.0). К задаче
+  это отношения не имеет, а поднятие минимальной версии macOS — отдельное
+  решение владельца, поэтому изменения откатены.
