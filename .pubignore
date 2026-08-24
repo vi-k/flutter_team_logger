@@ -1,3 +1,33 @@
+# ВАЖНО: этот файл полностью заменяет `.gitignore` для pub-архива, а не
+# дополняет его. Появление `.pubignore` в каталоге отменяет `.gitignore` того
+# же каталога целиком, поэтому всё, что не должно попасть в архив, надо
+# перечислить здесь заново — иначе `build/` с кэшем `.dill` уезжает на
+# pub.dev (проверено: 339 КБ против 30 МБ).
+
+# Зеркало корневого `.gitignore`. Правишь там — правь и здесь.
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+*.iml
+*.ipr
+*.iws
+.idea/
+
+/pubspec.lock
+**/doc/api/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+
 # Внутренняя кухня — не для pub-архива.
 docs/
 AGENTS.md
