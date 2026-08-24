@@ -7,6 +7,7 @@
   behind `view` substitutes plus the properties marked `hidden`. Real data
   does not apply `Loggable.sanitizer`; see the README.
 - Cover the tree model with tests.
+- Update team_logger dependency to 0.7.1.
 
 ## 0.7.0
 

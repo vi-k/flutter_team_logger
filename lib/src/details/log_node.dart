@@ -140,15 +140,8 @@ final class LogNode {
   String headerText({required LogTheme theme, required bool real}) =>
       _header(target(real: real), theme);
 
-  /// `LoggableData.name` is unusable here: its getter always returns the
-  /// string `'type'`, so the class name is taken the way `team_logger` takes
-  /// it internally.
   static String _typeName(LoggableData data, LogTheme theme) =>
-      data.type.showName
-          ? theme.data.nameStyle(
-              data.type.typeName ?? data.type.value.toString(),
-            )
-          : '';
+      data.type.showName ? theme.data.nameStyle(data.name) : '';
 
   static String _header(Object? target, LogTheme theme) => switch (target) {
         final LoggableWrapper wrapper => _header(wrapper.data, theme),
