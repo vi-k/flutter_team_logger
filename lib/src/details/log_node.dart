@@ -93,6 +93,76 @@ final class LogNode {
       _children(target(real: real), config, depth + 1, path, real: real) ??
       const [];
 
+  /// The node's label as the log would draw it.
+  String nameText(LogTheme theme) {
+    final effective = config.toEffectiveConfig();
+
+    return switch (kind) {
+      LogNodeKind.root => '',
+      LogNodeKind.prop => theme.data.keyStyle(
+          theme.formatValue(
+            '$label',
+            escapeAnsiCodes: effective.escapeAnsiCodes,
+          ),
+        ),
+      LogNodeKind.section => theme.data.sectionStyle('$label'),
+      LogNodeKind.element => theme.data.dim('[$label]'),
+      LogNodeKind.entry =>
+        Loggable.objectToString(label, theme: theme, config: config),
+    };
+  }
+
+  /// The node's value as the given mode draws it.
+  ///
+  /// The branching mirrors `Prop.toLogString`, minus the sanitizer segments
+  /// it keeps on a private stack: the details screen does not apply
+  /// `Loggable.sanitizer` — it reads the objects from memory.
+  String valueText({required LogTheme theme, required bool real}) =>
+      switch (real ? Prop.noView : view) {
+        LoggableNoView() => Loggable.objectToString(
+            value,
+            theme: theme,
+            depth: depth,
+            config: config,
+          ),
+        final LoggableView view => theme.formatValue(
+            view.toLogString(value, theme: theme, depth: depth),
+            escapeAnsiCodes: false,
+          ),
+        final view => theme.formatValue(
+            '$view'
+            '${Loggable.unitsToString(config.toEffectiveConfig().units, theme)}',
+            escapeAnsiCodes: false,
+          ),
+      };
+
+  /// What an expanded node shows in place of its value.
+  String headerText({required LogTheme theme, required bool real}) =>
+      _header(target(real: real), theme);
+
+  /// `LoggableData.name` is unusable here: its getter always returns the
+  /// string `'type'`, so the class name is taken the way `team_logger` takes
+  /// it internally.
+  static String _typeName(LoggableData data, LogTheme theme) =>
+      data.type.showName
+          ? theme.data.nameStyle(
+              data.type.typeName ?? data.type.value.toString(),
+            )
+          : '';
+
+  static String _header(Object? target, LogTheme theme) => switch (target) {
+        final LoggableWrapper wrapper => _header(wrapper.data, theme),
+        final Loggable loggable => _typeName(loggable.logClassInfo(), theme),
+        final LoggableData data => _typeName(data, theme),
+        LoggableMultiData() => '',
+        final Map<Object?, Object?> map =>
+          theme.data.punctuation('{${map.length}}'),
+        final List<Object?> list =>
+          theme.data.punctuation('[${list.length}]'),
+        final Set<Object?> set => theme.data.punctuation('{${set.length}}'),
+        _ => '',
+      };
+
   static bool _expandable(Object? target) => switch (target) {
         final LoggableWrapper wrapper => _expandable(wrapper.data),
         Loggable() ||

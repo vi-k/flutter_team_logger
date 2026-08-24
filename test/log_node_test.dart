@@ -101,4 +101,45 @@ void main() {
       expect(children[0].path, isNot(children[1].path));
     });
   });
+
+  group('text', () {
+    const theme = LogTheme.noColors;
+
+    test('log mode renders the view, real mode the value', () {
+      final data = Loggable.mapBuilder()
+        ..prop('pan', '4111111111111234', view: '**** 1234');
+      final node = LogNode.root(data).children(real: false).single;
+
+      expect(node.valueText(theme: theme, real: false), '**** 1234');
+      expect(node.valueText(theme: theme, real: true), '"4111111111111234"');
+    });
+
+    test('a computed prop shows its marker in real mode', () {
+      final data = Loggable.mapBuilder()..computed('total', '1.00');
+      final node = LogNode.root(data).children(real: true).single;
+
+      expect(node.valueText(theme: theme, real: false), '1.00');
+      expect(node.valueText(theme: theme, real: true), '<computed>');
+    });
+
+    test('units are appended to a bare view', () {
+      final data = Loggable.mapBuilder()
+        ..prop('weight', 1000, view: 1, units: 'kg');
+      final node = LogNode.root(data).children(real: false).single;
+
+      expect(node.valueText(theme: theme, real: false), '1kg');
+    });
+
+    test('a map key is rendered as the name', () {
+      final node = LogNode.root({'a': 1}).children(real: false).single;
+
+      expect(node.nameText(theme), '"a"');
+    });
+
+    test('an expanded object shows its class name', () {
+      final node = LogNode.root(_User(42, 'Ann', 'x'));
+
+      expect(node.headerText(theme: theme, real: false), '_User');
+    });
+  });
 }
